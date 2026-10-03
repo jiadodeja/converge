@@ -12,19 +12,26 @@ import {
   FileSearch,
   Layers,
   Search,
-  Filter
+  Filter,
+  Radio
 } from 'lucide-react';
 
 interface ChaosPanelProps {
   items: MessyDataItem[];
   activeInsight: ConvergenceInsight | null;
   onSelectInsightById: (insightId: string) => void;
+  mode?: 'demo' | 'live';
+  liveConnected?: boolean;
+  onSwitchToDemo?: () => void;
 }
 
 export const ChaosPanel: React.FC<ChaosPanelProps> = ({
   items,
   activeInsight,
   onSelectInsightById,
+  mode = 'demo',
+  liveConnected = false,
+  onSwitchToDemo,
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'slack' | 'pdf' | 'email'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,7 +58,7 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white tracking-tight">The Chaos</h2>
                 <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                  Unstructured Ingestion
+                  {mode === 'live' ? 'Live Slack Ingestion' : 'Unstructured Ingestion'}
                 </span>
               </div>
               <p className="text-xs text-zinc-400">
@@ -63,7 +70,7 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
             <span className="text-xs font-semibold text-zinc-300">
               {items.length} Data Stream{items.length !== 1 ? 's' : ''}
             </span>
-            <p className="text-[10px] text-zinc-400">Auto-vectorized</p>
+            <p className="text-[10px] text-zinc-400">{mode === 'live' ? 'Real-time' : 'Auto-vectorized'}</p>
           </div>
         </div>
 
@@ -130,7 +137,32 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
 
       {/* Scrollable Feed */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 custom-scrollbar">
-        {filteredItems.length === 0 ? (
+        {mode === 'live' && items.length === 0 ? (
+          <div className="h-full min-h-64 flex flex-col items-center justify-center text-center p-6 rounded-xl border border-dashed border-indigo-500/30 bg-indigo-500/5">
+            <div className="relative mb-4">
+              <span className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+              <div className="relative p-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <Radio className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-sm font-semibold text-zinc-100">
+              {liveConnected ? 'Listening for Slack messages...' : 'Cannot reach the backend'}
+            </p>
+            <p className="text-xs text-zinc-400 mt-1 max-w-xs leading-relaxed">
+              {liveConnected
+                ? 'Post a question in your HR Slack channel. It will show up here with the handbook excerpts the AI used.'
+                : 'Start the backend on port 8000, or switch to Demo Mode to show the sample cases.'}
+            </p>
+            {onSwitchToDemo && (
+              <button
+                onClick={onSwitchToDemo}
+                className="mt-4 px-4 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-semibold text-zinc-200 transition-colors"
+              >
+                Switch to Demo Mode
+              </button>
+            )}
+          </div>
+        ) : filteredItems.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 rounded-xl border border-dashed border-zinc-800 text-zinc-400">
             <Filter className="w-8 h-8 text-zinc-400 mb-2" />
             <p className="text-sm font-medium text-zinc-300">No matching streams found</p>
@@ -182,6 +214,12 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    {item.id.startsWith('messy-live-') && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        LIVE
+                      </span>
+                    )}
                     {isLinkedToActive ? (
                       <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20 animate-pulse">
                         <Sparkles className="w-3 h-3" />
@@ -207,7 +245,7 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
                           {item.channelOrDoc.replace('#', '')}
                         </span>
                         <span className="text-[10px] bg-zinc-800/80 px-2 py-0.5 rounded text-zinc-400">
-                          4 replies in thread
+                          {item.slackThread.length} {item.slackThread.length === 1 ? 'message' : 'messages in thread'}
                         </span>
                       </div>
 
@@ -272,9 +310,13 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
                             {item.pdfSnippet.docName}
                           </span>
                         </div>
-                        <span className="shrink-0 px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-sans text-[10px]">
-                          Page {item.pdfSnippet.pageNumber} of {item.pdfSnippet.totalPages}
-                        </span>
+                        {item.pdfSnippet.pageNumber > 0 && (
+                          <span className="shrink-0 px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-sans text-[10px]">
+                            {item.pdfSnippet.totalPages > 0
+                              ? `Page ${item.pdfSnippet.pageNumber} of ${item.pdfSnippet.totalPages}`
+                              : `Page ${item.pdfSnippet.pageNumber}`}
+                          </span>
+                        )}
                       </div>
 
                       {/* PDF Content Area */}
@@ -284,9 +326,11 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
                         </div>
 
                         {/* Surrounding Context (faded) */}
-                        <div className="text-[11px] text-zinc-400 line-clamp-2 select-none">
-                          {item.pdfSnippet.surroundingContext}
-                        </div>
+                        {item.pdfSnippet.surroundingContext && (
+                          <div className="text-[11px] text-zinc-400 line-clamp-2 select-none">
+                            {item.pdfSnippet.surroundingContext}
+                          </div>
+                        )}
 
                         {/* Highlighted Policy Clause (The critical text) */}
                         <div className="p-3 rounded-lg bg-amber-500/10 border-l-4 border-amber-500 text-amber-200 text-xs leading-relaxed font-sans shadow-sm">
@@ -328,7 +372,7 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
                     Source: <strong className="text-zinc-300 font-medium">{item.sourceBadge}</strong>
                   </span>
                   <span className="text-indigo-400 font-medium flex items-center gap-1">
-                    AI Parsed Vector ID: #{item.id.replace('messy-', '')}
+                    {item.id.startsWith('messy-live-') ? 'Live case' : `AI Parsed Vector ID: #${item.id.replace('messy-', '')}`}
                   </span>
                 </div>
               </div>

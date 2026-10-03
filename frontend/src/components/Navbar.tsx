@@ -10,7 +10,8 @@ import {
   Database, 
   Radio, 
   Building2,
-  Check
+  Check,
+  FlaskConical
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -18,6 +19,9 @@ interface NavbarProps {
   activePersona: Persona;
   onSelectPersona: (persona: Persona) => void;
   pendingActionsCount: number;
+  mode: 'demo' | 'live';
+  onModeChange: (mode: 'demo' | 'live') => void;
+  liveConnected: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -25,6 +29,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   activePersona,
   onSelectPersona,
   pendingActionsCount,
+  mode,
+  onModeChange,
+  liveConnected,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -69,21 +76,67 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Live Integration Status Badges (Desktop) */}
         <div className="hidden xl:flex items-center gap-3 text-xs">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-300">
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-ping" />
+            {mode === 'live' ? (
+              <Radio className={`w-3.5 h-3.5 ${liveConnected ? 'text-emerald-400 animate-ping' : 'text-rose-400'}`} />
+            ) : (
+              <FlaskConical className="w-3.5 h-3.5 text-amber-400" />
+            )}
             <span className="text-zinc-400">Slack Stream:</span>
-            <span className="text-emerald-400 font-medium">Listening</span>
+            {mode === 'live' ? (
+              liveConnected ? (
+                <span className="text-emerald-400 font-medium">Listening</span>
+              ) : (
+                <span className="text-rose-400 font-medium">Backend offline</span>
+              )
+            ) : (
+              <span className="text-amber-300 font-medium">Sample data</span>
+            )}
           </div>
 
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-300">
             <Database className="w-3.5 h-3.5 text-indigo-400" />
             <span className="text-zinc-400">ADP Workforce Now:</span>
-            <span className="text-indigo-400 font-medium">Connected</span>
+            <span className="text-indigo-400 font-medium">Sandbox (simulated)</span>
           </div>
 
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
             {pendingActionsCount} Pending Action{pendingActionsCount !== 1 ? 's' : ''}
           </div>
+        </div>
+
+        {/* Demo / Live mode switch */}
+        <div
+          className="flex items-center p-1 rounded-xl bg-zinc-900/90 border border-zinc-700/60 text-xs font-semibold"
+          role="group"
+          aria-label="Data mode"
+        >
+          <button
+            onClick={() => onModeChange('demo')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+              mode === 'demo'
+                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+            }`}
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            Demo
+          </button>
+          <button
+            onClick={() => onModeChange('live')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+              mode === 'live'
+                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                mode === 'live' ? (liveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400') : 'bg-zinc-500'
+              }`}
+            />
+            Live
+          </button>
         </div>
 
         {/* Persona Switcher Dropdown (Role-Based Access Control) */}

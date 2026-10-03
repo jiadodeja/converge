@@ -1,18 +1,20 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Navbar } from '../components/Navbar';
 import { ChaosPanel } from '../components/ChaosPanel';
 import { ConvergencePanel } from '../components/ConvergencePanel';
 import { ToastContainer, ToastMessage } from '../components/Toast';
 import { MOCK_PERSONAS, MOCK_MESSY_DATA, MOCK_INSIGHTS } from '../data/mockData';
 import { Persona, ConvergenceInsight } from '../types/converge';
+import { API_URL, LiveFeedItem, LiveCase, toLiveCase } from '../lib/live';
 import { 
   Building2, 
   MapPin, 
   ShieldCheck, 
   ArrowRightLeft,
-  CheckCircle2
+  CheckCircle2,
+  WifiOff
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -24,10 +26,25 @@ export default function DashboardPage() {
   const [isCopied, setIsCopied] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  // Demo mode uses the mock data. Live mode uses real Slack messages from the backend.
+  const [mode, setMode] = useState<'demo' | 'live'>('demo');
+  const [liveCases, setLiveCases] = useState<LiveCase[]>([]);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const knownLiveIds = useRef<Set<string> | null>(null);
+
+  const allInsights = useMemo(
+    () => (mode === 'demo' ? MOCK_INSIGHTS : liveCases.map((c) => c.insight)),
+    [mode, liveCases]
+  );
+  const allMessyItems = useMemo(
+    () => (mode === 'demo' ? MOCK_MESSY_DATA : liveCases.flatMap((c) => c.messy)),
+    [mode, liveCases]
+  );
+
   // Filter insights for active manager (Role-Based Access Control)
   const managerInsights = useMemo(() => {
-    return MOCK_INSIGHTS.filter((insight) => insight.managerId === activePersona.id);
-  }, [activePersona.id]);
+    return allInsights.filter((insight) => insight.managerId === activePersona.id);
+  }, [allInsights, activePersona.id]);
 
   // Ensure active insight matches the manager's roster
   const activeInsight = useMemo(() => {
@@ -38,8 +55,8 @@ export default function DashboardPage() {
   // Filter messy data streams related to this manager's insights
   const managerMessyItems = useMemo(() => {
     const insightIds = new Set(managerInsights.map((i) => i.id));
-    return MOCK_MESSY_DATA.filter((item) => insightIds.has(item.relatedInsightId));
-  }, [managerInsights]);
+    return allMessyItems.filter((item) => insightIds.has(item.relatedInsightId));
+  }, [managerInsights, allMessyItems]);
 
   // Compute pending actions count for this manager
   const pendingActionsCount = useMemo(() => {
@@ -56,10 +73,70 @@ export default function DashboardPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // In Live mode, ask the backend for new Slack messages every 3 seconds
+  useEffect(() => {
+    if (mode !== 'live') return;
+    knownLiveIds.current = null;
+    let stopped = false;
+
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/slack/feed`);
+        const data = await res.json();
+        if (stopped) return;
+
+        const feed: LiveFeedItem[] = [...data.feed].reverse(); // newest first
+        setLiveCases(feed.map(toLiveCase));
+        setLiveConnected(true);
+
+        const ids = feed.map((f) => f.id);
+        if (knownLiveIds.current === null) {
+          // First load: remember what is there and focus the newest case
+          knownLiveIds.current = new Set(ids);
+          if (feed.length > 0) setActiveInsightId(`live-${feed[0].id}`);
+        } else {
+          const fresh = feed.filter((f) => !knownLiveIds.current!.has(f.id));
+          if (fresh.length > 0) {
+            fresh.forEach((f) => knownLiveIds.current!.add(f.id));
+            setActiveInsightId(`live-${fresh[0].id}`);
+            addToast(
+              'success',
+              'New Slack message analyzed',
+              `${fresh[0].employee_name || fresh[0].employee_id}: action plan is ready.`
+            );
+          }
+        }
+      } catch {
+        if (!stopped) setLiveConnected(false);
+      }
+    };
+
+    load();
+    const timer = setInterval(load, 3000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [mode]);
+
+  // Handler: switch between Demo and Live mode
+  const handleModeChange = (next: 'demo' | 'live') => {
+    if (next === mode) return;
+    setMode(next);
+    if (next === 'demo') {
+      const first = MOCK_INSIGHTS.find((i) => i.managerId === activePersona.id);
+      if (first) setActiveInsightId(first.id);
+      addToast('info', 'Demo Mode', 'Showing sample cases. No backend needed.');
+    } else {
+      setLiveCases([]);
+      addToast('info', 'Live Mode', 'Listening for real Slack messages from the backend.');
+    }
+  };
+
   // Handler: Change Manager Persona (RBAC Simulation)
   const handleSelectPersona = (persona: Persona) => {
     setActivePersona(persona);
-    const newInsights = MOCK_INSIGHTS.filter((i) => i.managerId === persona.id);
+    const newInsights = allInsights.filter((i) => i.managerId === persona.id);
     if (newInsights.length > 0) {
       setActiveInsightId(newInsights[0].id);
     }
@@ -123,6 +200,9 @@ export default function DashboardPage() {
         activePersona={activePersona}
         onSelectPersona={handleSelectPersona}
         pendingActionsCount={pendingActionsCount}
+        mode={mode}
+        onModeChange={handleModeChange}
+        liveConnected={liveConnected}
       />
 
       {/* Sub-Header Context Bar */}
@@ -150,7 +230,9 @@ export default function DashboardPage() {
             <span className="flex items-center gap-1.5">
               <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-400" />
               <span className="text-zinc-300">Live Synthesis:</span>
-              <span className="text-indigo-400 font-semibold">{managerMessyItems.length} Sources Connected</span>
+              <span className="text-indigo-400 font-semibold">
+                {managerMessyItems.length} Source{managerMessyItems.length !== 1 ? 's' : ''} {mode === 'live' ? 'Live' : 'Connected'}
+              </span>
             </span>
             <span className="text-zinc-600">•</span>
             <span className="flex items-center gap-1.5">
@@ -163,6 +245,20 @@ export default function DashboardPage() {
 
       {/* Main Responsive Split-Screen Workspace */}
       <main className="flex-1 max-w-[1700px] w-full mx-auto p-4 sm:p-6 lg:p-8">
+        {mode === 'live' && !liveConnected && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200">
+            <span className="flex items-center gap-2">
+              <WifiOff className="w-4 h-4" />
+              Cannot reach the backend at {API_URL}. Start it, or use Demo Mode for the presentation.
+            </span>
+            <button
+              onClick={() => handleModeChange('demo')}
+              className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 font-semibold transition-colors"
+            >
+              Switch to Demo Mode
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-[calc(100vh-10.5rem)]">
           {/* Left Panel: The Chaos (Unstructured Data Feed) */}
           <div className="lg:col-span-6 xl:col-span-5 flex flex-col h-[700px] lg:h-full">
@@ -170,6 +266,9 @@ export default function DashboardPage() {
               items={managerMessyItems}
               activeInsight={currentInsightWithStatus}
               onSelectInsightById={handleSelectInsightById}
+              mode={mode}
+              liveConnected={liveConnected}
+              onSwitchToDemo={() => handleModeChange('demo')}
             />
           </div>
 
@@ -183,6 +282,7 @@ export default function DashboardPage() {
               isSubmittingAdp={isSubmittingAdp}
               onCopySlackReply={handleCopySlackReply}
               isCopied={isCopied}
+              mode={mode}
             />
           </div>
         </div>

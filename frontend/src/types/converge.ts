@@ -71,7 +71,7 @@ export interface ConvergenceInsight {
     email: string;
     workdayId: string;
   };
-  category: 'Parental Leave' | 'Cross-Border Remote Work' | 'Medical / FMLA' | 'Equipment & Wellness Stipend' | 'PTO Carryover';
+  category: 'Parental Leave' | 'General HR Question' | 'Cross-Border Remote Work' | 'Medical / FMLA' | 'Equipment & Wellness Stipend' | 'PTO Carryover';
   urgency: 'High' | 'Medium' | 'Low';
   status: 'Pending Manager Action' | 'Submitted to ADP' | 'Synced with ADP';
   aiConfidence: number;
@@ -97,5 +97,7 @@ export interface ConvergenceInsight {
     autoTriggerPayrollAdjustment: boolean;
   };
   suggestedSlackReply: string;
+  adpEndpoint?: string; // real endpoint text from the backend (live mode)
+  origin?: 'demo' | 'live';
   messySourceIds: string[];
 }

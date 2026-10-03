@@ -26,6 +26,7 @@ interface ConvergencePanelProps {
   isSubmittingAdp: boolean;
   onCopySlackReply: (text: string) => void;
   isCopied: boolean;
+  mode?: 'demo' | 'live';
 }
 
 export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
@@ -36,6 +37,7 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
   isSubmittingAdp,
   onCopySlackReply,
   isCopied,
+  mode = 'demo',
 }) => {
   const [showPayload, setShowPayload] = useState(false);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
@@ -51,9 +53,13 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-zinc-950/60 rounded-2xl border border-zinc-800 text-zinc-400">
         <Sparkles className="w-12 h-12 text-zinc-400 mb-3" />
-        <h3 className="text-lg font-bold text-zinc-200">No Active Case Selected</h3>
+        <h3 className="text-lg font-bold text-zinc-200">
+          {mode === 'live' ? 'Waiting for the first Slack message' : 'No Active Case Selected'}
+        </h3>
         <p className="text-xs text-zinc-400 max-w-sm mt-1">
-          Select an item from the unstructured chaos panel or change persona to view AI synthesized HR insights.
+          {mode === 'live'
+            ? 'When someone posts in the HR Slack channel, the AI action plan will appear here.'
+            : 'Select an item from the unstructured chaos panel or change persona to view AI synthesized HR insights.'}
         </p>
       </div>
     );
@@ -85,10 +91,17 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 flex items-center gap-1.5">
-              <span className="text-zinc-400 font-medium">Confidence:</span>
-              <span className="font-bold text-emerald-400">{activeInsight.aiConfidence}%</span>
-            </div>
+            {activeInsight.aiConfidence > 0 ? (
+              <div className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 flex items-center gap-1.5">
+                <span className="text-zinc-400 font-medium">Confidence:</span>
+                <span className="font-bold text-emerald-400">{activeInsight.aiConfidence}%</span>
+              </div>
+            ) : (
+              <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 font-semibold flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live GPT-4o
+              </div>
+            )}
           </div>
         </div>
 
@@ -183,6 +196,12 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
             </div>
           </div>
         </div>
+
+        {activeInsight.origin === 'live' && (
+          <p className="-mt-2 px-1 text-[11px] text-zinc-400">
+            Name, Slack ID, policy answer and next steps are live. Role, department and tenure are placeholders until a Workday connection is added.
+          </p>
+        )}
 
         {/* AI Synthesis Summary Card */}
         <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-b from-indigo-950/30 via-zinc-900/60 to-zinc-900/40 border border-indigo-500/30 shadow-lg">
@@ -313,7 +332,9 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">
                   ADP Workforce Now REST API
                 </span>
-                <span className="text-xs text-zinc-400">Endpoint: /v1/benefits/leave-events</span>
+                <span className="text-xs text-zinc-400 font-mono break-all">
+                  Endpoint: {activeInsight.adpEndpoint || '/v1/benefits/leave-events'}
+                </span>
               </div>
               <h3 className="text-sm font-bold text-white mt-1">
                 {isSubmitted
@@ -377,7 +398,9 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
               <pre className="mt-2.5 p-3 rounded-lg bg-black/80 border border-zinc-800 text-[11px] font-mono text-emerald-400 overflow-x-auto">
                 {JSON.stringify(
                   {
-                    endpoint: 'https://api.adp.com/hr/v1/leave-management/events',
+                    endpoint: activeInsight.adpEndpoint
+                      ? `https://api.adp.com${activeInsight.adpEndpoint.replace(/^[A-Z]+\s+/, '')}`
+                      : 'https://api.adp.com/hr/v1/leave-management/events',
                     method: 'POST',
                     headers: {
                       Authorization: 'Bearer [MOCK_OAUTH_TOKEN]',
