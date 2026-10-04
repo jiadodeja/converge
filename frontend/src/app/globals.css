@@ -1,8 +1,61 @@
 @import "tailwindcss";
 
+/*
+  Light "ADP style" theme: dark navy header, blue side menu, white cards, ADP blue buttons.
+  The components were first written for a dark theme, so instead of editing every class
+  these tokens flip the gray scale and darken the light accent shades so text stays readable.
+*/
+@theme {
+  --color-ink: #1b1d2b;        /* near-black for headings, like ADP */
+  --color-adp-navy: #141c52;   /* header */
+  --color-adp-blue: #2f4ba2;   /* buttons, links, selected tabs */
+  --font-sans: var(--font-roboto), system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Gray scale, flipped for a light page */
+  --color-zinc-950: #f6f8fb;
+  --color-zinc-900: #ffffff;
+  --color-zinc-800: #e4e8f0;
+  --color-zinc-700: #cfd6e3;
+  --color-zinc-600: #a3adc0;
+  --color-zinc-500: #77839b;
+  --color-zinc-400: #56627a;
+  --color-zinc-300: #3b475f;
+  --color-zinc-200: #1f2c47;
+  --color-zinc-100: #1b1d2b;
+
+  /* Indigo is remapped to the ADP blue family */
+  --color-indigo-100: #1f2f78;
+  --color-indigo-200: #24378a;
+  --color-indigo-300: #2f4ba2;
+  --color-indigo-400: #3b57b8;
+  --color-indigo-500: #3b57b8;
+  --color-indigo-600: #2f4ba2;
+  --color-indigo-950: #eef1fb;
+
+  /* Other accent text shades made darker so they read on white */
+  --color-emerald-100: #065f46;
+  --color-emerald-200: #047857;
+  --color-emerald-300: #047857;
+  --color-emerald-400: #059669;
+  --color-emerald-950: #ecfdf5;
+
+  --color-amber-200: #92400e;
+  --color-amber-300: #b45309;
+  --color-amber-400: #d97706;
+
+  --color-rose-100: #9f1239;
+  --color-rose-300: #be123c;
+  --color-rose-400: #e11d48;
+  --color-rose-950: #fff1f2;
+
+  --color-sky-400: #0284c7;
+  --color-blue-300: #1d4ed8;
+  --color-cyan-400: #0891b2;
+}
+
 :root {
-  --background: #090a0f;
-  --foreground: #f4f4f5;
+  --background: #f7f6f4;
+  --foreground: #1b1d2b;
 }
 
 body {
@@ -22,10 +75,10 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: #cfd6e3;
   border-radius: 9999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #a3adc0;
 }

@@ -56,7 +56,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
     >
       {icons[toast.type]}
       <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-semibold tracking-wide text-white flex items-center justify-between">
+        <h4 className="text-sm font-semibold tracking-wide text-ink flex items-center justify-between">
           {toast.title}
           <span className="text-[10px] text-zinc-400 font-normal ml-2">Just now</span>
         </h4>
@@ -64,7 +64,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
       </div>
       <button
         onClick={() => onDismiss(toast.id)}
-        className="text-zinc-400 hover:text-white transition-colors p-1 -mr-1 -mt-1 rounded-lg hover:bg-white/10"
+        className="text-zinc-400 hover:text-ink transition-colors p-1 -mr-1 -mt-1 rounded-lg hover:bg-zinc-800"
         aria-label="Dismiss toast"
       >
         <X className="w-4 h-4" />

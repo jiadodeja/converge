@@ -303,7 +303,7 @@ export default function DashboardPage() {
   const currentInsightWithStatus = activeInsight;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#090a0f] text-zinc-100 selection:bg-indigo-500/30 selection:text-indigo-200">
+    <div className="min-h-screen flex flex-col bg-[#f7f6f4] text-ink selection:bg-blue-500/20 selection:text-ink">
       {/* Top Navbar with Persona Switcher */}
       <Navbar
         personas={personas}
@@ -315,64 +315,74 @@ export default function DashboardPage() {
         liveConnected={liveConnected}
       />
 
-      {/* Business tabs: HR, Payroll, Insurance, Retirement and the cross-business view */}
-      <BusinessTabs active={domain} onChange={handleDomainChange} counts={tabCounts} mode={mode} />
+      <div className="flex flex-col md:flex-row flex-1">
+        {/* Left menu: Home (all businesses), HR, Payroll, Insurance, Retirement */}
+        <BusinessTabs active={domain} onChange={handleDomainChange} counts={tabCounts} mode={mode} />
 
-      {/* Sub-Header Context Bar */}
-      <div className="border-b border-zinc-800/80 bg-zinc-950/60 px-4 sm:px-6 lg:px-8 py-2.5 backdrop-blur-sm">
-        <div className="max-w-[1700px] mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="flex items-center gap-1.5 text-zinc-300 font-medium">
-              <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Scope:</span>
-              <strong className="text-white">{activePersona.department}</strong>
-            </span>
-            <span className="text-zinc-600 hidden sm:inline">•</span>
-            <span className="flex items-center gap-1.5 text-zinc-400 hidden sm:flex">
-              <MapPin className="w-3.5 h-3.5 text-zinc-500" />
-              <span>{activePersona.location}</span>
-            </span>
-            <span className="text-zinc-600 hidden sm:inline">•</span>
-            <span className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[11px] font-medium">
-              <ShieldCheck className="w-3 h-3" />
-              <span>{activePersona.securityClearance}</span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1 rounded-lg bg-zinc-900 border border-zinc-800 p-0.5 text-[11px] font-semibold">
-            <button
-              onClick={() => setView('open')}
-              className={`px-3 py-1 rounded-md transition-colors ${view === 'open' ? 'bg-indigo-500/20 text-indigo-300' : 'text-zinc-400 hover:text-zinc-200'}`}
-            >
-              Open ({openCount})
-            </button>
-            <button
-              onClick={() => setView('done')}
-              className={`px-3 py-1 rounded-md transition-colors ${view === 'done' ? 'bg-emerald-500/20 text-emerald-300' : 'text-zinc-400 hover:text-zinc-200'}`}
-            >
-              Done ({doneCount})
-            </button>
-          </div>
-
-          <div className="flex items-center gap-4 text-zinc-400 text-[11px]">
-            <span className="flex items-center gap-1.5">
-              <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="text-zinc-300">Live Synthesis:</span>
-              <span className="text-indigo-400 font-semibold">
-                {managerMessyItems.length} Source{managerMessyItems.length !== 1 ? 's' : ''} {mode === 'live' ? 'Live' : 'Connected'}
+        <main className="flex-1 min-w-0 bg-white px-4 sm:px-8 pt-6 pb-8">
+          {/* Page title, like the ADP pages */}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h1 className="text-[32px] leading-tight font-bold tracking-tight text-ink">
+                {domain === 'all' ? 'Home' : domain === 'insurance' ? 'Insurance & Benefits' : DOMAINS[domain].label}
+              </h1>
+              <p className="mt-1 text-sm text-zinc-400">{DOMAINS[domain].tagline}</p>
+            </div>
+            <div className="flex items-center gap-4 text-zinc-400 text-xs">
+              <span className="flex items-center gap-1.5">
+                <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-indigo-400 font-semibold">
+                  {managerMessyItems.length} Source{managerMessyItems.length !== 1 ? 's' : ''} {mode === 'live' ? 'Live' : 'Connected'}
+                </span>
               </span>
-            </span>
-            <span className="text-zinc-600">•</span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{allInsights.filter((i) => i.status === 'Synced with ADP').length} Synced with ADP</span>
-            </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{allInsights.filter((i) => i.status === 'Synced with ADP').length} Synced with ADP</span>
+              </span>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main Responsive Split-Screen Workspace */}
-      <main className="flex-1 max-w-[1700px] w-full mx-auto p-4 sm:p-6 lg:p-8">
+          {domain !== 'all' && (
+            <>
+              {/* Who is looking, and what they are allowed to see */}
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Scope:</span>
+                  <strong className="text-ink">{activePersona.department}</strong>
+                </span>
+                <span className="text-zinc-600 hidden sm:inline">&bull;</span>
+                <span className="items-center gap-1.5 text-zinc-400 hidden sm:flex">
+                  <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+                  <span>{activePersona.location}</span>
+                </span>
+                <span className="text-zinc-600 hidden sm:inline">&bull;</span>
+                <span className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[11px] font-medium">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>{activePersona.securityClearance}</span>
+                </span>
+              </div>
+
+              {/* Open / Done tabs with an underline, like the ADP page tabs */}
+              <div className="mt-5 flex gap-8 border-b border-zinc-800">
+                {(['open', 'done'] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={`pb-3 -mb-px text-sm font-semibold border-b-[3px] transition-colors ${
+                      view === v
+                        ? 'border-[#2f4ba2] text-ink'
+                        : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {v === 'open' ? `Open (${openCount})` : `Done (${doneCount})`}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <div className="mt-6">
         {mode === 'live' && !liveConnected && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200">
             <span className="flex items-center gap-2">
@@ -420,7 +430,9 @@ export default function DashboardPage() {
           </div>
         </div>
         )}
-      </main>
+          </div>
+        </main>
+      </div>
 
       {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />

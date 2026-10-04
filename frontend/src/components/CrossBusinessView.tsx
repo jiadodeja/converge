@@ -25,14 +25,14 @@ export const CrossBusinessView: React.FC<CrossBusinessViewProps> = ({ groups, mo
     return (
       <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 p-10 text-center">
         <Route className="w-8 h-8 text-zinc-500 mx-auto mb-3" />
-        <h3 className="text-sm font-bold text-white">No cross-business messages yet</h3>
+        <h3 className="text-sm font-bold text-ink">No cross-business messages yet</h3>
         <p className="text-xs text-zinc-400 mt-2 max-w-md mx-auto">
           {mode === 'live'
             ? 'Run the demo script to send one message to every business at once:'
             : 'No sample groups found.'}
         </p>
         {mode === 'live' && (
-          <div className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg bg-black/50 border border-zinc-800 font-mono text-xs text-emerald-300">
+          <div className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg bg-[#141c52] border border-zinc-800 font-mono text-xs text-[#6ee7b7]">
             <Terminal className="w-3.5 h-3.5" />
             .\demo.ps1 -Domain all
           </div>
@@ -55,7 +55,7 @@ export const CrossBusinessView: React.FC<CrossBusinessViewProps> = ({ groups, mo
               onClick={() => setSelected(i)}
               className={`px-3 py-1 rounded-full border whitespace-nowrap max-w-[260px] truncate ${
                 i === selected
-                  ? 'bg-white/10 border-white/30 text-white'
+                  ? 'bg-[#2f4ba2] border-[#2f4ba2] text-white'
                   : 'border-zinc-800 text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -66,14 +66,14 @@ export const CrossBusinessView: React.FC<CrossBusinessViewProps> = ({ groups, mo
       )}
 
       {/* The original message and where the router sent it */}
-      <div className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 p-5">
+      <div className="rounded-lg border border-zinc-800 bg-white shadow-[0_2px_10px_rgba(20,28,82,0.10)] p-5">
         <div className="flex items-start gap-3">
           <MessageSquareQuote className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div>
             <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold mb-1">
               One employee message
             </div>
-            <p className="text-sm text-white leading-relaxed">&ldquo;{group.message}&rdquo;</p>
+            <p className="text-sm text-ink leading-relaxed">&ldquo;{group.message}&rdquo;</p>
             <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-zinc-400">
               <Route className="w-3.5 h-3.5" />
               <span>Router sent it to:</span>
@@ -116,7 +116,7 @@ export const CrossBusinessView: React.FC<CrossBusinessViewProps> = ({ groups, mo
                 </span>
               </div>
 
-              <h4 className="text-sm font-semibold text-white leading-snug">{ins.headline}</h4>
+              <h4 className="text-sm font-semibold text-ink leading-snug">{ins.headline}</h4>
 
               {ins.highlights && (
                 <div className="grid grid-cols-3 gap-2">

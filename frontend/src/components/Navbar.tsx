@@ -2,16 +2,18 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Persona } from '../types/converge';
-import { 
-  Users, 
-  ChevronDown, 
-  ShieldCheck, 
-  Sparkles, 
-  Database, 
-  Radio, 
+import {
+  Users,
+  ChevronDown,
+  ShieldCheck,
+  Sparkles,
+  Database,
+  Radio,
   Building2,
   Check,
-  FlaskConical
+  FlaskConical,
+  Menu,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,6 +26,8 @@ interface NavbarProps {
   liveConnected: boolean;
 }
 
+// Top bar styled like the ADP header: dark navy, white text, icon buttons with small labels on the right.
+// (The gray scale is flipped for the light theme, so this bar uses explicit colors.)
 export const Navbar: React.FC<NavbarProps> = ({
   personas,
   activePersona,
@@ -47,207 +51,192 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-xl transition-all">
-      <div className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand & Mission */}
+    <header className="sticky top-0 z-40 w-full bg-[#141c52] text-white shadow-md">
+      <div className="px-4 sm:px-6 h-[72px] flex items-center justify-between gap-4">
+        {/* Brand */}
         <div className="flex items-center gap-4">
+          <Menu className="w-5 h-5 text-white/90" />
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-cyan-400 p-[1px] shadow-lg shadow-indigo-500/20">
-              <div className="w-full h-full bg-zinc-950 rounded-[11px] flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
-              </div>
+            <div className="w-9 h-9 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-black tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-                  Converge
-                </span>
-                <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <span className="text-lg font-bold tracking-tight text-white">Converge</span>
+                <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-full bg-white/10 text-white/90 border border-white/20">
                   Enterprise Copilot
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 hidden sm:block">
+              <p className="text-[11px] text-white/70 hidden sm:block">
                 Turning Messy Enterprise Noise into Actionable Next Steps
               </p>
             </div>
           </div>
         </div>
 
-        {/* Live Integration Status Badges (Desktop) */}
-        <div className="hidden xl:flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-300">
+        {/* Status badges (large screens) */}
+        <div className="hidden 2xl:flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-white/90">
             {mode === 'live' ? (
-              <Radio className={`w-3.5 h-3.5 ${liveConnected ? 'text-emerald-400 animate-ping' : 'text-rose-400'}`} />
+              <Radio className={`w-3.5 h-3.5 ${liveConnected ? 'text-[#6ee7b7]' : 'text-[#fda4af]'}`} />
             ) : (
-              <FlaskConical className="w-3.5 h-3.5 text-amber-400" />
+              <FlaskConical className="w-3.5 h-3.5 text-[#fcd34d]" />
             )}
-            <span className="text-zinc-400">Slack Stream:</span>
+            <span className="text-white/70">Slack Stream:</span>
             {mode === 'live' ? (
               liveConnected ? (
-                <span className="text-emerald-400 font-medium">Listening</span>
+                <span className="text-[#6ee7b7] font-medium">Listening</span>
               ) : (
-                <span className="text-rose-400 font-medium">Backend offline</span>
+                <span className="text-[#fda4af] font-medium">Backend offline</span>
               )
             ) : (
-              <span className="text-amber-300 font-medium">Sample data</span>
+              <span className="text-[#fcd34d] font-medium">Sample data</span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-zinc-300">
-            <Database className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-zinc-400">ADP Workforce Now:</span>
-            <span className="text-indigo-400 font-medium">Sandbox (simulated)</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            {pendingActionsCount} Pending Action{pendingActionsCount !== 1 ? 's' : ''}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-white/90">
+            <Database className="w-3.5 h-3.5 text-[#93c5fd]" />
+            <span className="text-white/70">ADP APIs:</span>
+            <span className="text-[#93c5fd] font-medium">Sandbox (simulated)</span>
           </div>
         </div>
 
-        {/* Demo / Live mode switch */}
-        <div
-          className="flex items-center p-1 rounded-xl bg-zinc-900/90 border border-zinc-700/60 text-xs font-semibold"
-          role="group"
-          aria-label="Data mode"
-        >
-          <button
-            onClick={() => onModeChange('demo')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-              mode === 'demo'
-                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
-            }`}
+        {/* Right side: mode switch, Things To Do, person */}
+        <div className="flex items-center gap-4 sm:gap-6">
+          {/* Demo / Live mode switch */}
+          <div
+            className="flex items-center p-1 rounded-xl bg-white/10 border border-white/15 text-xs font-semibold"
+            role="group"
+            aria-label="Data mode"
           >
-            <FlaskConical className="w-3.5 h-3.5" />
-            Demo
-          </button>
-          <button
-            onClick={() => onModeChange('live')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-              mode === 'live'
-                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
-            }`}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                mode === 'live' ? (liveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400') : 'bg-zinc-500'
+            <button
+              onClick={() => onModeChange('demo')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                mode === 'demo' ? 'bg-white text-[#141c52] shadow-sm' : 'text-white/80 hover:text-white'
               }`}
-            />
-            Live
-          </button>
-        </div>
-
-        {/* Persona Switcher Dropdown (Role-Based Access Control) */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-700/60 hover:border-zinc-600 transition-all text-left shadow-sm group"
-            aria-expanded={dropdownOpen}
-            aria-haspopup="true"
-          >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-md">
-              {activePersona.avatar}
-            </div>
-            <div className="hidden sm:block">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] uppercase tracking-wider text-zinc-400 font-medium">
-                  Viewing as:
-                </span>
-                <span className="text-xs font-semibold text-white group-hover:text-indigo-300 transition-colors">
-                  {activePersona.name}
-                </span>
-              </div>
-              <div className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-                <span>{activePersona.role}</span>
-                <span className="w-1 h-1 rounded-full bg-zinc-600"></span>
-                <span className="text-indigo-400">{activePersona.teamSize} reports</span>
-              </div>
-            </div>
-            <ChevronDown
-              className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
-                dropdownOpen ? 'rotate-180 text-white' : ''
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              Demo
+            </button>
+            <button
+              onClick={() => onModeChange('live')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                mode === 'live' ? 'bg-white text-[#141c52] shadow-sm' : 'text-white/80 hover:text-white'
               }`}
-            />
-          </button>
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  mode === 'live' ? (liveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500') : 'bg-white/50'
+                }`}
+              />
+              Live
+            </button>
+          </div>
 
-          {/* Dropdown Menu */}
-          {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl shadow-black/80 py-2.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="px-4 py-2 border-b border-zinc-800">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
-                    Role-Based Access Control
-                  </span>
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    <ShieldCheck className="w-3 h-3" />
-                    Direct Reports Only
-                  </span>
+          {/* Things To Do (open cases) */}
+          <div className="hidden sm:flex flex-col items-center gap-0.5 text-white" title="Cases that still need action">
+            <div className="relative">
+              <CheckCircle2 className="w-6 h-6" />
+              {pendingActionsCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#d0271d] text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendingActionsCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] font-medium">Things To Do</span>
+          </div>
+
+          {/* Persona switcher (role-based access) */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="flex items-center gap-3 text-left group"
+              aria-expanded={dropdownOpen}
+              aria-haspopup="true"
+            >
+              <div className="hidden lg:block text-right">
+                <div className="text-xs font-semibold text-white">{activePersona.name}</div>
+                <div className="text-[11px] text-white/70">{activePersona.role}</div>
+              </div>
+              <div className="w-11 h-11 rounded-full bg-[#e6e9f5] border-2 border-white/60 flex items-center justify-center text-[#141c52] font-bold text-base group-hover:border-white transition-colors">
+                {activePersona.avatar}
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-white/80 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Dropdown Menu */}
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-3 w-80 rounded-xl bg-zinc-900 border border-zinc-700 shadow-2xl shadow-slate-900/20 py-2.5 z-50 text-zinc-300">
+                <div className="px-4 py-2 border-b border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                      Role-Based Access Control
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      <ShieldCheck className="w-3 h-3" />
+                      Direct Reports Only
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-1 leading-snug">
+                    Switch manager persona to preview filtered data isolation and team-specific compliance context.
+                  </p>
                 </div>
-                <p className="text-[11px] text-zinc-400 mt-1 leading-snug">
-                  Switch manager persona to preview filtered data isolation and team-specific compliance context.
-                </p>
-              </div>
 
-              <div className="p-1 space-y-1">
-                {personas.map((persona) => {
-                  const isSelected = persona.id === activePersona.id;
-                  return (
-                    <button
-                      key={persona.id}
-                      onClick={() => {
-                        onSelectPersona(persona);
-                        setDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all ${
-                        isSelected
-                          ? 'bg-indigo-950/60 border border-indigo-500/30 text-white'
-                          : 'hover:bg-zinc-800/60 text-zinc-300 hover:text-white'
-                      }`}
-                    >
-                      <div
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                <div className="p-1 space-y-1">
+                  {personas.map((persona) => {
+                    const isSelected = persona.id === activePersona.id;
+                    return (
+                      <button
+                        key={persona.id}
+                        onClick={() => {
+                          onSelectPersona(persona);
+                          setDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all ${
                           isSelected
-                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                            : 'bg-zinc-800 text-zinc-300'
+                            ? 'bg-indigo-950/60 border border-indigo-500/30 text-ink'
+                            : 'hover:bg-zinc-800/60 text-zinc-300 hover:text-ink'
                         }`}
                       >
-                        {persona.avatar}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold truncate text-white">
-                            {persona.name}
-                          </span>
-                          {isSelected && (
-                            <Check className="w-4 h-4 text-indigo-400 shrink-0 ml-1" />
-                          )}
+                        <div
+                          className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                            isSelected ? 'bg-[#2f4ba2] text-white' : 'bg-zinc-800 text-zinc-300'
+                          }`}
+                        >
+                          {persona.avatar}
                         </div>
-                        <p className="text-xs text-zinc-400 truncate">{persona.role}</p>
-                        <div className="flex items-center gap-2 mt-1 text-[11px] text-zinc-400">
-                          <span className="flex items-center gap-1">
-                            <Building2 className="w-3 h-3 text-zinc-400" />
-                            {persona.department}
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Users className="w-3 h-3 text-zinc-400" />
-                            {persona.teamSize} reports
-                          </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold truncate text-ink">{persona.name}</span>
+                            {isSelected && <Check className="w-4 h-4 text-indigo-400 shrink-0 ml-1" />}
+                          </div>
+                          <p className="text-xs text-zinc-400 truncate">{persona.role}</p>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-zinc-400">
+                            <span className="flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-zinc-400" />
+                              {persona.department}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3 text-zinc-400" />
+                              {persona.teamSize} reports
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-              <div className="mt-2 pt-2 px-4 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-400">
-                <span>Active Scope: {activePersona.department}</span>
-                <span className="text-zinc-400">{activePersona.location.split(' ')[0]}</span>
+                <div className="mt-2 pt-2 px-4 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-400">
+                  <span>Active Scope: {activePersona.department}</span>
+                  <span>{activePersona.location.split(' ')[0]}</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </header>
