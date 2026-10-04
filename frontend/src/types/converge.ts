@@ -106,6 +106,7 @@ export interface ConvergenceInsight {
   domain?: DomainId; // missing means HR (the original demo data)
   groupId?: string; // cases from the same message share a groupId
   originalMessage?: string; // the employee message that started the case
+  redactions?: Record<string, number>; // what was masked before the AI saw the message
   highlights?: { label: string; value: string }[]; // key facts shown as tiles
   messySourceIds: string[];
 }

@@ -29,6 +29,7 @@ from langchain_chroma import Chroma
 import ai_provider
 from domains import DOMAINS, DOMAIN_IDS, get_domain, keyword_route
 from schemas import InsightRequest, HRActionPlan, RouteDecision
+from pii import redact_pii
 
 # Load environment configuration
 load_dotenv()
@@ -259,7 +260,8 @@ def next_feed_id() -> str:
 
 
 def add_to_feed(domain: str, employee_id: str, employee_name: str, manager_id: str, message: str,
-                plan: HRActionPlan, sources: List[dict], source: str, group_id: Optional[str] = None) -> dict:
+                plan: HRActionPlan, sources: List[dict], source: str, group_id: Optional[str] = None,
+                redactions: Optional[dict] = None) -> dict:
     record = {
         "id": next_feed_id(),
         "domain": domain,
@@ -273,6 +275,7 @@ def add_to_feed(domain: str, employee_id: str, employee_name: str, manager_id: s
         "received_at": datetime.now().isoformat(timespec="seconds"),
         "timestamp": "Just now",
         "source": source,
+        "redactions": redactions or {},   # what was masked before the AI saw the message
         "status": "open",      # "open" or "done"
         "done_at": None,
         "done_how": None,      # "adp" or "manual"
@@ -288,6 +291,7 @@ def add_to_feed(domain: str, employee_id: str, employee_name: str, manager_id: s
 # ---------------------------------------------------------------------------
 
 async def synthesize_rag_insight(employee_id: str, manager_id: str, message: str, domain: str = "hr") -> tuple:
+    message, _ = redact_pii(message)  # safety net: the AI never sees raw SSNs or birth dates
     """
     Core RAG pipeline for one business. Returns the plan and the policy excerpts used.
     1. Finds the top 3 policy chunks for this business in ChromaDB.
@@ -337,6 +341,7 @@ async def synthesize_rag_insight(employee_id: str, manager_id: str, message: str
 
 
 async def route_message(message: str) -> dict:
+    message, _ = redact_pii(message)  # safety net, same as above
     """
     Decides which business lines a message touches.
     Uses the AI model first. If that fails (for example a rate limit), it falls back to keywords.
@@ -377,16 +382,19 @@ async def generate_insight(payload: InsightRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown domain '{payload.domain}'. Use one of: {', '.join(DOMAIN_IDS)}"
         )
+    clean_message, redactions = redact_pii(payload.message)
+    if redactions:
+        print(f"[Privacy] Masked before AI: {redactions}")
     try:
         result, sources = await synthesize_rag_insight(
             employee_id=payload.employee_id,
             manager_id=payload.manager_id,
-            message=payload.message,
+            message=clean_message,
             domain=payload.domain
         )
 
         add_to_feed(payload.domain, payload.employee_id, payload.employee_name, payload.manager_id,
-                    payload.message, result, sources, source="api")
+                    clean_message, result, sources, source="api", redactions=redactions)
         return result
     except HTTPException:
         raise
@@ -407,12 +415,15 @@ async def analyze_all(payload: InsightRequest):
     3. Results share a group_id so the dashboard can show them side by side.
     """
     check_api_key()
-    route = await route_message(payload.message)
+    clean_message, redactions = redact_pii(payload.message)
+    if redactions:
+        print(f"[Privacy] Masked before AI: {redactions}")
+    route = await route_message(clean_message)
     group_id = f"grp-{datetime.now().strftime('%H%M%S%f')}"
 
     outcomes = await asyncio.gather(
         *[
-            synthesize_rag_insight(payload.employee_id, payload.manager_id, payload.message, d)
+            synthesize_rag_insight(payload.employee_id, payload.manager_id, clean_message, d)
             for d in route["domains"]
         ],
         return_exceptions=True
@@ -427,7 +438,7 @@ async def analyze_all(payload: InsightRequest):
             continue
         plan, sources = outcome
         add_to_feed(domain, payload.employee_id, payload.employee_name, payload.manager_id,
-                    payload.message, plan, sources, source="api", group_id=group_id)
+                    clean_message, plan, sources, source="api", group_id=group_id, redactions=redactions)
         results.append({"domain": domain, "insight": plan.model_dump(), "sources": sources})
 
     if not results:
@@ -438,7 +449,8 @@ async def analyze_all(payload: InsightRequest):
 
     return {
         "group_id": group_id,
-        "message": payload.message,
+        "message": clean_message,
+        "privacy": {"redactions": redactions},
         "routing": route,
         "results": results,
         "errors": errors,
@@ -479,6 +491,9 @@ async def process_slack_message(text: str, user_id: str, channel_id: str, ts: st
     Makes the insight, saves it to the feed, and replies in the Slack thread.
     """
     bot_token = os.getenv("SLACK_BOT_TOKEN")
+    text, redactions = redact_pii(text)
+    if redactions:
+        print(f"[Privacy] Masked before AI: {redactions}")
     try:
         insight, sources = await synthesize_rag_insight(
             employee_id=user_id,
@@ -490,8 +505,9 @@ async def process_slack_message(text: str, user_id: str, channel_id: str, ts: st
         user_name = await asyncio.to_thread(get_slack_user_name, user_id, bot_token)
 
         record = add_to_feed("hr", user_id, user_name, "sarah-connor", text, insight, sources,
-                             source="slack_webhook")
+                             source="slack_webhook", redactions=redactions)
         record["id"] = f"slack-{ts}"
+        save_feed()  # save again, because the id changed
         record["channel_id"] = channel_id
         record["replied_in_slack"] = False
 
@@ -544,7 +560,7 @@ async def slack_events_webhook(payload: dict, background_tasks: BackgroundTasks)
             return {"status": "duplicate"}
         SEEN_SLACK_MESSAGES.add(key)
 
-        print(f"[Slack Event] Message from {user_id} in {channel_id}: '{text}'")
+        print(f"[Slack Event] Message from {user_id} in {channel_id}: '{redact_pii(text)[0]}'")
         background_tasks.add_task(process_slack_message, text, user_id, channel_id, ts)
         return {"status": "accepted"}
 

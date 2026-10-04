@@ -179,6 +179,15 @@ function showResults(data) {
   var box = $('results');
   box.innerHTML = '';
 
+  // Tell the user if the backend hid sensitive data (SSN, birth date...) before the AI call
+  var redactions = (data.privacy && data.privacy.redactions) || {};
+  var hidden = Object.keys(redactions).map(function (k) {
+    return k + ' x' + redactions[k];
+  });
+  if (hidden.length) {
+    box.appendChild(el('div', 'route', 'Privacy: hidden before the AI call (' + hidden.join(', ') + ').'));
+  }
+
   var routing = data.routing || {};
   var names = (routing.domains || []).map(function (d) {
     return BUSINESS_NAMES[d] || d;

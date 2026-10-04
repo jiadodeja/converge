@@ -12,6 +12,7 @@ import {
   ArrowRight, 
   Clock, 
   ShieldAlert, 
+  ShieldCheck,
   FileCheck2, 
   Code2, 
   ChevronRight,
@@ -207,6 +208,20 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
           <p className="-mt-2 px-1 text-[11px] text-zinc-400">
             Name, Slack ID, policy answer and next steps are live. Role, department and tenure are placeholders until a Workday connection is added.
           </p>
+        )}
+
+        {/* Privacy notice: shown when SSNs, birth dates etc. were hidden before the AI call */}
+        {activeInsight.redactions && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300">
+            <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              <strong>Privacy:</strong> sensitive data was hidden before the AI saw this message (
+              {Object.entries(activeInsight.redactions)
+                .map(([name, count]) => `${name} x${count}`)
+                .join(', ')}
+              ).
+            </span>
+          </div>
         )}
 
         {/* AI Synthesis Summary Card */}

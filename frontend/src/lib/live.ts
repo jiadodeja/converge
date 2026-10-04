@@ -12,6 +12,7 @@ export interface LiveFeedItem {
   employee_name?: string;
   domain?: string;
   group_id?: string;
+  redactions?: Record<string, number>;
   status?: 'open' | 'done';
   done_how?: 'adp' | 'manual' | null;
   manager_id: string;
@@ -140,6 +141,7 @@ export function toLiveCase(item: LiveFeedItem): LiveCase {
     domain,
     groupId: item.group_id,
     originalMessage: item.message,
+    redactions: item.redactions && Object.keys(item.redactions).length > 0 ? item.redactions : undefined,
     highlights: ai.highlights && ai.highlights.length > 0 ? ai.highlights : undefined,
     // Sample values: the backend does not know these yet (no Workday connection)
     employee: {
