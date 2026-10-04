@@ -318,6 +318,10 @@ export const MOCK_INSIGHTS: ConvergenceInsight[] = [
     urgency: 'Medium',
     status: 'Pending Manager Action',
     aiConfidence: 99.4,
+    domain: 'hr',
+    groupId: 'grp-baby',
+    originalMessage: "Expecting our second kid in mid-August. What happens to my pay, my health plan and my 401(k) while I'm on leave?",
+    highlights: [{ label: 'Leave length', value: '12 weeks paid' }, { label: 'Pay', value: '100% of base salary' }, { label: 'PTO burn-down', value: 'Not required' }, { label: 'State PFL', value: 'Up to 4 extra weeks' }],
     headline: 'Alex Chen is requesting parental leave clarification for mid-August 2026.',
     summary:
       'Employee was confused by an outdated 2022 Confluence PDF vs California law. AI synthesized the latest 58-page 2024 Employee Benefits Handbook (§8.3.2) and CA PFL statutes. Alex is fully eligible for 12 weeks of 100% employer-paid leave, plus an optional 4-week state bonding top-up. Voluntary PTO usage only—no mandatory PTO burn-down.',
@@ -370,6 +374,8 @@ export const MOCK_INSIGHTS: ConvergenceInsight[] = [
     urgency: 'Low',
     status: 'Pending Manager Action',
     aiConfidence: 97.8,
+    domain: 'hr',
+    highlights: [{ label: 'Stipend', value: '$1,000 per year' }, { label: 'Expires', value: 'Nov 15' }, { label: 'Manager limit', value: '$1,200' }, { label: 'Rollover', value: 'None' }],
     headline: 'Maya Lin inquiring about $1,000 WFH ergonomic stipend rollover & 4K monitor setup.',
     summary:
       'Analysis of Remote Workforce Policy v3.1 (§4.1) confirms that ergonomic funds do NOT roll over to 2027 and expire on Nov 15. However, Maya qualifies under the "Specialized Engineering Tier" (ADP-EXP-DEV4) allowing front-line manager approval up to $1,200 without VP sign-off.',
@@ -421,6 +427,8 @@ export const MOCK_INSIGHTS: ConvergenceInsight[] = [
     urgency: 'Medium',
     status: 'Pending Manager Action',
     aiConfidence: 98.2,
+    domain: 'hr',
+    highlights: [{ label: 'Remote abroad', value: 'Up to 30 business days' }, { label: 'Region', value: 'EU/Schengen (Tier 1)' }, { label: 'Request', value: '6 weeks, Oct 15 to Nov 30' }, { label: 'Approval', value: 'Needs exception' }],
     headline: 'Jordan Hayes requesting 6-week temporary international remote work from Spain & Portugal.',
     summary:
       'AI parsed the 74-page International Remote Work & Tax Compliance Manual (§6.4). Jordan is eligible for up to 30 business days (6 weeks) of work from EU/Schengen without creating local tax liability for Acme Corp, provided Corporate Zscaler VPN is used and ADP International Exemption is filed.',
@@ -472,6 +480,8 @@ export const MOCK_INSIGHTS: ConvergenceInsight[] = [
     urgency: 'High',
     status: 'Pending Manager Action',
     aiConfidence: 99.1,
+    domain: 'hr',
+    highlights: [{ label: 'Schedule', value: '2 days per week' }, { label: 'Leave type', value: 'Intermittent FMLA' }, { label: 'Status', value: 'Approved schedule' }, { label: 'Reason', value: 'Post-surgery family care' }],
     headline: 'Liam Gallagher requesting 2 days/week intermittent FMLA for post-surgery family care.',
     summary:
       'AI extracted rules from FMLA Compliance Manual §3.5. Intermittent FMLA schedules (working Mon-Wed, taking Thu-Fri off) are federally protected for immediate family member post-operative care. Department of Labor Form WH-380-F is required within 15 days. Submitting to ADP sets up automatic time tracking code FMLA-INT-FAM to avoid incorrect PTO deductions.',
