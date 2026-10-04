@@ -1,7 +1,7 @@
 // Helpers for Live Mode: ask the backend for Slack messages and turn them
 // into the same card shapes the demo data uses.
 
-import { ConvergenceInsight, MessyDataItem } from '../types/converge';
+import { ConvergenceInsight, DomainId, MessyDataItem } from '../types/converge';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -10,6 +10,8 @@ export interface LiveFeedItem {
   id: string;
   employee_id: string;
   employee_name?: string;
+  domain?: string;
+  group_id?: string;
   manager_id: string;
   channel_id?: string;
   message: string;
@@ -29,6 +31,8 @@ export interface LiveFeedItem {
     statutory_citation?: string;
     checklist?: string[];
     suggested_slack_reply?: string;
+    highlights?: { label: string; value: string }[];
+    domain?: string;
   };
 }
 
@@ -58,6 +62,20 @@ function pickCategory(given: string | undefined, text: string): ConvergenceInsig
   if (/pto|carryover|carry over|vacation/.test(t)) return 'PTO Carryover';
   return 'General HR Question';
 }
+
+const DEFAULT_CATEGORY: Record<DomainId, string> = {
+  hr: 'General HR Question',
+  payroll: 'Payroll Question',
+  insurance: 'Benefits Question',
+  retirement: 'Retirement Question',
+};
+
+const SOURCE_DOC: Record<DomainId, string> = {
+  hr: 'Employee Handbook',
+  payroll: 'Payroll Policy Guide',
+  insurance: 'Benefits Enrollment Guide',
+  retirement: '401(k) Plan Summary',
+};
 
 function pickUrgency(given?: string): ConvergenceInsight['urgency'] {
   return given === 'High' || given === 'Low' ? given : 'Medium';
@@ -98,7 +116,10 @@ export function toLiveCase(item: LiveFeedItem): LiveCase {
   const ai = item.insight;
   const name = item.employee_name || item.employee_id;
   const firstName = name.split(' ')[0];
-  const category = pickCategory(ai.category, item.message);
+  const domain = (['hr', 'payroll', 'insurance', 'retirement'].includes(item.domain || ai.domain || '')
+    ? (item.domain || ai.domain)
+    : 'hr') as DomainId;
+  const category = domain === 'hr' ? pickCategory(ai.category, item.message) : ai.category || DEFAULT_CATEGORY[domain];
   const insightId = `live-${item.id}`;
   const time = formatTime(item.received_at);
 
@@ -114,6 +135,10 @@ export function toLiveCase(item: LiveFeedItem): LiveCase {
     id: insightId,
     managerId: item.manager_id,
     origin: 'live',
+    domain,
+    groupId: item.group_id,
+    originalMessage: item.message,
+    highlights: ai.highlights && ai.highlights.length > 0 ? ai.highlights : undefined,
     // Sample values: the backend does not know these yet (no Workday connection)
     employee: {
       name,
@@ -150,7 +175,7 @@ export function toLiveCase(item: LiveFeedItem): LiveCase {
     },
     suggestedSlackReply:
       ai.suggested_slack_reply ||
-      `Hi ${firstName}, thanks for reaching out! I checked the handbook and here is the short version: ${ai.eligibility_summary}`,
+      `Hi ${firstName}, thanks for reaching out! I checked the policy and here is the short version: ${ai.eligibility_summary}`,
     messySourceIds: [`messy-${insightId}-slack`],
   };
 
@@ -186,14 +211,14 @@ export function toLiveCase(item: LiveFeedItem): LiveCase {
     messy.push({
       id,
       type: 'pdf',
-      title: `Handbook Excerpt ${i + 1} (retrieved by AI)`,
-      channelOrDoc: 'Employee Handbook',
+      title: `${SOURCE_DOC[domain]} excerpt ${i + 1} (retrieved by AI)`,
+      channelOrDoc: SOURCE_DOC[domain],
       timestamp: time,
       sourceBadge: 'ChromaDB vector search',
       author: { name: 'People Ops', role: 'Policy owner', avatar: 'PO' },
       summarySnippet: src.text.slice(0, 120),
       pdfSnippet: {
-        docName: 'Employee Handbook',
+        docName: SOURCE_DOC[domain],
         version: 'Current',
         pageNumber: src.page || 0, // 0 means "page unknown"
         totalPages: 0,

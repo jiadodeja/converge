@@ -1,3 +1,6 @@
+// The four ADP business lines Converge works for
+export type DomainId = 'hr' | 'payroll' | 'insurance' | 'retirement';
+
 export interface Persona {
   id: string;
   name: string;
@@ -8,6 +11,7 @@ export interface Persona {
   email: string;
   location: string;
   securityClearance: string;
+  domain?: DomainId;
 }
 
 export interface SlackMessage {
@@ -71,7 +75,7 @@ export interface ConvergenceInsight {
     email: string;
     workdayId: string;
   };
-  category: 'Parental Leave' | 'General HR Question' | 'Cross-Border Remote Work' | 'Medical / FMLA' | 'Equipment & Wellness Stipend' | 'PTO Carryover';
+  category: string; // for example 'Parental Leave', 'Short or Missing Pay', '401(k) Loan'
   urgency: 'High' | 'Medium' | 'Low';
   status: 'Pending Manager Action' | 'Submitted to ADP' | 'Synced with ADP';
   aiConfidence: number;
@@ -99,5 +103,9 @@ export interface ConvergenceInsight {
   suggestedSlackReply: string;
   adpEndpoint?: string; // real endpoint text from the backend (live mode)
   origin?: 'demo' | 'live';
+  domain?: DomainId; // missing means HR (the original demo data)
+  groupId?: string; // cases from the same message share a groupId
+  originalMessage?: string; // the employee message that started the case
+  highlights?: { label: string; value: string }[]; // key facts shown as tiles
   messySourceIds: string[];
 }
