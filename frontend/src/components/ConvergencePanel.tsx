@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ConvergenceInsight } from '../types/converge';
+import { DOMAINS } from '../lib/domains';
 import { 
   Sparkles, 
   CheckCircle, 
@@ -109,7 +110,7 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
         {insights.length > 1 && (
           <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
             <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider shrink-0">
-              Direct Reports:
+              Open Cases:
             </span>
             {insights.map((ins) => {
               const selected = ins.id === activeInsight.id;
@@ -217,6 +218,25 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
           </p>
         </div>
 
+        {/* Key facts for this business */}
+        {activeInsight.highlights && activeInsight.highlights.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {activeInsight.highlights.map((h) => (
+              <div
+                key={h.label}
+                className={`p-3 rounded-xl border ${DOMAINS[activeInsight.domain ?? 'hr'].tile}`}
+              >
+                <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+                  {h.label}
+                </div>
+                <div className={`text-xs font-bold mt-1 leading-snug ${DOMAINS[activeInsight.domain ?? 'hr'].text}`}>
+                  {h.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Eligibility & Policy Determination */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
           <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
@@ -256,7 +276,7 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
         {/* Next Steps Checklist */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
           <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-300 mb-3 flex items-center justify-between">
-            <span>Action Checklist (Manager Execution)</span>
+            <span>Action Checklist</span>
             <span className="text-[11px] font-normal text-zinc-400">Click to mark tasks</span>
           </h4>
 
@@ -330,7 +350,7 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">
-                  ADP Workforce Now REST API
+                  {DOMAINS[activeInsight.domain ?? 'hr'].adpProduct} REST API
                 </span>
                 <span className="text-xs text-zinc-400 font-mono break-all">
                   Endpoint: {activeInsight.adpEndpoint || '/v1/benefits/leave-events'}

@@ -63,11 +63,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Converge
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  HR Copilot
+                  Enterprise Copilot
                 </span>
               </div>
               <p className="text-[11px] text-zinc-400 hidden sm:block">
-                Turning Messy Enterprise Noise into Actionable People Insights
+                Turning Messy Enterprise Noise into Actionable Next Steps
               </p>
             </div>
           </div>

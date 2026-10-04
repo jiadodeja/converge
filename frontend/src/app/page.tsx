@@ -4,7 +4,11 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Navbar } from '../components/Navbar';
 import { ChaosPanel } from '../components/ChaosPanel';
 import { ConvergencePanel } from '../components/ConvergencePanel';
+import { BusinessTabs } from '../components/BusinessTabs';
+import { CrossBusinessView, InsightGroup } from '../components/CrossBusinessView';
 import { ToastContainer, ToastMessage } from '../components/Toast';
+import { MOCK_NEW_INSIGHTS, MOCK_NEW_MESSY } from '../data/mockCases';
+import { DOMAINS, DomainTab } from '../lib/domains';
 import { MOCK_PERSONAS, MOCK_MESSY_DATA, MOCK_INSIGHTS } from '../data/mockData';
 import { Persona, ConvergenceInsight } from '../types/converge';
 import { API_URL, LiveFeedItem, LiveCase, toLiveCase } from '../lib/live';
@@ -19,6 +23,7 @@ import {
 
 export default function DashboardPage() {
   // Phase 1 & 2 State
+  const [domain, setDomain] = useState<DomainTab>('hr');
   const [activePersona, setActivePersona] = useState<Persona>(MOCK_PERSONAS[0]);
   const [activeInsightId, setActiveInsightId] = useState<string>(MOCK_INSIGHTS[0].id);
   const [submittedInsightIds, setSubmittedInsightIds] = useState<Set<string>>(new Set());
@@ -33,18 +38,48 @@ export default function DashboardPage() {
   const knownLiveIds = useRef<Set<string> | null>(null);
 
   const allInsights = useMemo(
-    () => (mode === 'demo' ? MOCK_INSIGHTS : liveCases.map((c) => c.insight)),
+    () => (mode === 'demo' ? [...MOCK_INSIGHTS, ...MOCK_NEW_INSIGHTS] : liveCases.map((c) => c.insight)),
     [mode, liveCases]
   );
   const allMessyItems = useMemo(
-    () => (mode === 'demo' ? MOCK_MESSY_DATA : liveCases.flatMap((c) => c.messy)),
+    () => (mode === 'demo' ? [...MOCK_MESSY_DATA, ...MOCK_NEW_MESSY] : liveCases.flatMap((c) => c.messy)),
     [mode, liveCases]
   );
 
-  // Filter insights for active manager (Role-Based Access Control)
+  // People shown in the persona switcher depend on the business tab
+  const personas = useMemo(
+    () => (domain === 'hr' || domain === 'all' ? MOCK_PERSONAS : DOMAINS[domain].personas),
+    [domain]
+  );
+
+  // How many cases each tab has (for the little number on the tab)
+  const tabCounts = useMemo(() => {
+    const counts: Record<DomainTab, number> = { all: 0, hr: 0, payroll: 0, insurance: 0, retirement: 0 };
+    allInsights.forEach((i) => {
+      counts[i.domain ?? 'hr'] += 1;
+    });
+    counts.all = new Set(allInsights.filter((i) => i.groupId).map((i) => i.groupId)).size;
+    return counts;
+  }, [allInsights]);
+
+  // Messages that touched several businesses (used by the All Businesses tab)
+  const groups = useMemo<InsightGroup[]>(() => {
+    const map = new Map<string, InsightGroup>();
+    allInsights.forEach((i) => {
+      if (!i.groupId) return;
+      const g = map.get(i.groupId) || { groupId: i.groupId, message: i.originalMessage || '', insights: [] };
+      g.insights.push(i);
+      map.set(i.groupId, g);
+    });
+    return Array.from(map.values());
+  }, [allInsights]);
+
+  // Filter insights for the chosen business and (in demo mode) the active manager (RBAC)
   const managerInsights = useMemo(() => {
-    return allInsights.filter((insight) => insight.managerId === activePersona.id);
-  }, [allInsights, activePersona.id]);
+    const inDomain = allInsights.filter((i) => domain === 'all' || (i.domain ?? 'hr') === domain);
+    if (mode === 'live') return inDomain; // live cases are not tied to a demo manager
+    return inDomain.filter((insight) => insight.managerId === activePersona.id);
+  }, [allInsights, domain, mode, activePersona.id]);
 
   // Ensure active insight matches the manager's roster
   const activeInsight = useMemo(() => {
@@ -101,8 +136,8 @@ export default function DashboardPage() {
             setActiveInsightId(`live-${fresh[0].id}`);
             addToast(
               'success',
-              'New Slack message analyzed',
-              `${fresh[0].employee_name || fresh[0].employee_id}: action plan is ready.`
+              'New message analyzed',
+              `${fresh[0].employee_name || fresh[0].employee_id}: ${DOMAINS[(fresh[0].domain as DomainTab) in DOMAINS ? (fresh[0].domain as DomainTab) : 'hr'].label} action plan is ready.`
             );
           }
         }
@@ -124,7 +159,7 @@ export default function DashboardPage() {
     if (next === mode) return;
     setMode(next);
     if (next === 'demo') {
-      const first = MOCK_INSIGHTS.find((i) => i.managerId === activePersona.id);
+      const first = [...MOCK_INSIGHTS, ...MOCK_NEW_INSIGHTS].find((i) => i.managerId === activePersona.id);
       if (first) setActiveInsightId(first.id);
       addToast('info', 'Demo Mode', 'Showing sample cases. No backend needed.');
     } else {
@@ -145,6 +180,31 @@ export default function DashboardPage() {
       `RBAC Switch: ${persona.name}`,
       `Viewing team dashboard for ${persona.department} (${persona.teamSize} direct reports). Access restricted by RBAC Tier.`
     );
+  };
+
+  // Handler: switch business tab and pick that business's first person
+  const handleDomainChange = (next: DomainTab) => {
+    setDomain(next);
+    if (next === 'all') return;
+    const list = next === 'hr' ? MOCK_PERSONAS : DOMAINS[next].personas;
+    const first = list[0];
+    if (first) {
+      setActivePersona(first);
+      const firstCase = allInsights.find(
+        (i) => (i.domain ?? 'hr') === next && (mode === 'live' || i.managerId === first.id)
+      );
+      if (firstCase) setActiveInsightId(firstCase.id);
+    }
+  };
+
+  // Handler: "Open full case" from the All Businesses view
+  const handleOpenCase = (insight: ConvergenceInsight) => {
+    const d = insight.domain ?? 'hr';
+    const list = d === 'hr' ? MOCK_PERSONAS : DOMAINS[d].personas;
+    const owner = list.find((p) => p.id === insight.managerId);
+    setDomain(d);
+    if (owner) setActivePersona(owner);
+    setActiveInsightId(insight.id);
   };
 
   // Handler: Select an insight directly
@@ -196,7 +256,7 @@ export default function DashboardPage() {
     <div className="min-h-screen flex flex-col bg-[#090a0f] text-zinc-100 selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Top Navbar with Persona Switcher */}
       <Navbar
-        personas={MOCK_PERSONAS}
+        personas={personas}
         activePersona={activePersona}
         onSelectPersona={handleSelectPersona}
         pendingActionsCount={pendingActionsCount}
@@ -204,6 +264,9 @@ export default function DashboardPage() {
         onModeChange={handleModeChange}
         liveConnected={liveConnected}
       />
+
+      {/* Business tabs: HR, Payroll, Insurance, Retirement and the cross-business view */}
+      <BusinessTabs active={domain} onChange={handleDomainChange} counts={tabCounts} mode={mode} />
 
       {/* Sub-Header Context Bar */}
       <div className="border-b border-zinc-800/80 bg-zinc-950/60 px-4 sm:px-6 lg:px-8 py-2.5 backdrop-blur-sm">
@@ -259,6 +322,9 @@ export default function DashboardPage() {
             </button>
           </div>
         )}
+        {domain === 'all' ? (
+          <CrossBusinessView groups={groups} mode={mode} onOpenCase={handleOpenCase} />
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-[calc(100vh-10.5rem)]">
           {/* Left Panel: The Chaos (Unstructured Data Feed) */}
           <div className="lg:col-span-6 xl:col-span-5 flex flex-col h-[700px] lg:h-full">
@@ -286,6 +352,7 @@ export default function DashboardPage() {
             />
           </div>
         </div>
+        )}
       </main>
 
       {/* Toast Notification Container */}

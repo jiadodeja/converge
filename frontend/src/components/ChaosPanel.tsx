@@ -62,7 +62,7 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-400">
-                Raw Slack threads, 50+ page PDF handbooks, and unformatted HR inquiries
+                Raw Slack threads, emails and long policy PDFs from every ADP business
               </p>
             </div>
           </div>
