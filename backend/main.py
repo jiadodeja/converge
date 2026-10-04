@@ -1,92 +1,94 @@
 """
-Converge HR Copilot Backend API Server
-FastAPI endpoint: POST /api/insights/generate
-Integrates Unstructured/LangChain RAG, ChromaDB local vector store, and OpenAI GPT-4o.
+Converge Backend API Server
+Works for four ADP business lines: HR, Payroll, Insurance and Retirement.
+
+Main endpoints:
+  POST /api/insights/generate     one business (set "domain" in the request)
+  POST /api/insights/analyze-all  the AI picks every business the message touches
+  POST /api/slack/events          Slack webhook (HR)
+  GET  /api/slack/feed            what the dashboard shows in Live mode
 """
 
 import os
 import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_chroma import Chroma
 
-from schemas import InsightRequest, HRActionPlan
+import ai_provider
+from domains import DOMAINS, DOMAIN_IDS, get_domain, keyword_route
+from schemas import InsightRequest, HRActionPlan, RouteDecision
 
 # Load environment configuration
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_DIR = os.getenv("CHROMA_PERSIST_DIRECTORY", os.path.join(BASE_DIR, "chroma_db"))
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "hr_policies")
-PDF_PATH = os.getenv("PDF_PATH", os.path.join(BASE_DIR, "data", "handbook.pdf"))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
-# Global Vectorstore reference
-vector_store: Optional[Chroma] = None
+def pdf_path_for(domain: str) -> str:
+    return os.path.join(DATA_DIR, get_domain(domain)["pdf_file"])
 
 
-def get_vector_store() -> Chroma:
-    """
-    Initializes or returns the persistent Chroma vector store.
-    """
-    global vector_store
-    if vector_store is not None:
-        return vector_store
+# One vector store per business, made the first time it is needed
+vector_stores: Dict[str, Chroma] = {}
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key.startswith("your_openai"):
+
+def check_api_key():
+    """Stops early with a clear message if the AI key is missing."""
+    if not ai_provider.get_api_key():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "OPENAI_API_KEY is not configured. Please set a valid OpenAI API key in "
-                "backend/.env to enable embeddings retrieval and GPT-4o synthesis."
+                f"{ai_provider.key_env_name()} is not configured. Please add it to "
+                "backend/.env to enable policy search and AI synthesis."
             )
         )
 
-    embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        api_key=api_key
-    )
 
-    vector_store = Chroma(
+def get_vector_store(domain: str) -> Chroma:
+    """Returns the Chroma store for one business."""
+    if domain in vector_stores:
+        return vector_stores[domain]
+
+    check_api_key()
+    vector_stores[domain] = Chroma(
         persist_directory=CHROMA_DIR,
-        collection_name=COLLECTION_NAME,
-        embedding_function=embeddings
+        collection_name=ai_provider.get_collection_name(domain),
+        embedding_function=ai_provider.get_embeddings()
     )
-    return vector_store
+    return vector_stores[domain]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Startup and shutdown lifecycle handler.
-    Checks PDF presence and environment readiness.
-    """
+    """Startup: make any sample PDFs that are missing."""
     print("[FastAPI Startup] Initializing Converge Backend...")
-    if not os.path.exists(PDF_PATH):
-        print(f"[FastAPI Startup] Generating default handbook at {PDF_PATH}...")
+    print(f"[FastAPI Startup] AI provider: {ai_provider.PROVIDER} ({ai_provider.chat_model_name()})")
+    missing = [d for d in DOMAIN_IDS if not os.path.exists(pdf_path_for(d))]
+    if missing:
+        print(f"[FastAPI Startup] Generating sample documents for: {', '.join(missing)}")
         try:
             from data.generate_pdf import main as gen_pdf
             gen_pdf()
         except Exception as e:
-            print(f"[FastAPI Startup] Error generating PDF: {e}")
+            print(f"[FastAPI Startup] Error generating PDFs: {e}")
     yield
     print("[FastAPI Shutdown] Converge Backend stopped.")
 
 
 app = FastAPI(
-    title="Converge HR Intelligence API",
-    description="Transforms messy enterprise communications and policies into actionable HR insights and automated ADP payloads.",
-    version="1.0.0",
+    title="Converge Enterprise Intelligence API",
+    description="Turns messy messages and long policy documents into actionable plans for ADP HR, Payroll, Insurance and Retirement.",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -103,12 +105,14 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {
-        "service": "Converge Enterprise HR Intelligence API",
-        "version": "1.0.0",
+        "service": "Converge Enterprise Intelligence API",
+        "version": "2.0.0",
         "status": "online",
         "docs_url": "/docs",
+        "domains": DOMAIN_IDS,
         "endpoints": {
             "insights_generate": "POST /api/insights/generate",
+            "insights_analyze_all": "POST /api/insights/analyze-all",
             "health": "GET /health"
         }
     }
@@ -116,77 +120,134 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    api_key_set = bool(os.getenv("OPENAI_API_KEY") and not os.getenv("OPENAI_API_KEY", "").startswith("your_openai"))
-    chroma_exists = os.path.exists(CHROMA_DIR)
-    pdf_exists = os.path.exists(PDF_PATH)
-
+    api_key_set = bool(ai_provider.get_api_key())
     return {
         "status": "healthy",
-        "openai_api_key_configured": api_key_set,
-        "chroma_dir_exists": chroma_exists,
-        "handbook_pdf_exists": pdf_exists,
+        "ai_provider": ai_provider.PROVIDER,
+        "chat_model": ai_provider.chat_model_name(),
+        "embedding_model": ai_provider.embedding_model_name(),
+        "api_key_configured": api_key_set,
+        "chroma_dir_exists": os.path.exists(CHROMA_DIR),
+        "domains": {
+            d: {
+                "name": DOMAINS[d]["name"],
+                "pdf_exists": os.path.exists(pdf_path_for(d)),
+                "collection": ai_provider.get_collection_name(d),
+            }
+            for d in DOMAIN_IDS
+        },
     }
 
 
-SYSTEM_PROMPT = """You are "Converge", an enterprise HR Copilot and policy intelligence system built for front-line People Managers.
-Your objective is to turn messy, ambiguous employee communications (e.g., Slack messages) into deterministic, verified HR action plans by cross-referencing corporate policies.
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+
+SYSTEM_PROMPT_TEMPLATE = """You are "Converge", an enterprise copilot for the ADP {business} business line.
+Your job is to turn messy, unclear messages (Slack, email, tickets) into verified, actionable plans by checking them against the official policy documents.
+The person who will read your answer is a {user_role}.
 
 You will be given:
-1. The employee's raw Slack message.
-2. Verified excerpts from the official Enterprise Employee Handbook retrieved via semantic search.
+1. The raw message from the employee.
+2. Verified excerpts from the {doc_title}, found with semantic search.
 
 Instructions:
-- Carefully analyze the employee's request against the provided policy context.
-- Determine the employee's eligibility, duration, compensation, and any statutory protections (such as FMLA or state PFL).
-- Address any specific questions (e.g., whether PTO burn-down is mandatory or voluntary).
-- Prescribe explicit, actionable next steps for the front-line people manager.
-- Specify the appropriate mocked ADP Workforce Now REST API endpoint for automating this life event or policy workflow (e.g. "POST /events/hr/v1/leaves/parental-leave-requests" or "POST /events/hr/v1/benefits/pto-adjustments"). Do not call real APIs; provide a realistic mocked endpoint path.
+- The message may touch several business lines. Answer ONLY the {business} part of it.
+- Check the request against the policy context.
+- {focus}
+- Give clear, ordered next steps for the {user_role}.
+- Choose the mocked ADP REST API endpoint that records this action. Examples: {adp_examples}. Do not call real APIs. Give a realistic mocked endpoint path.
+{guardrails}
 
-You must output strictly conforming to the requested schema:
-- eligibility_summary: Plain-English, comprehensive synthesis of what the employee is entitled to and relevant policy clauses.
-- recommended_action: Step-by-step guidance for the front-line manager to resolve the request.
-- adp_api_endpoint: The mocked ADP REST API endpoint string to record this action in the system of record.
+Fill in these fields:
+- eligibility_summary: Plain-English summary of what applies and which policy sections you used.
+- recommended_action: Step-by-step guidance for the {user_role}.
+- adp_api_endpoint: The mocked ADP REST API endpoint string.
 - headline: One sentence saying what the employee is asking for.
-- category: One of Parental Leave, Cross-Border Remote Work, Medical / FMLA, Equipment & Wellness Stipend, PTO Carryover, General HR Question.
+- category: Exactly one of: {categories}.
 - urgency: High, Medium or Low.
 - eligibility_status: Eligible, Conditional or Ineligible.
 - eligibility_headline: Very short label (max 8 words) of the result.
 - key_points: 2 to 4 short bullets of the policy facts that apply.
-- statutory_citation: The handbook section or law used. Leave empty if the context does not name one.
-- checklist: 3 to 5 short manager action steps, in order.
-- suggested_slack_reply: A friendly, short Slack reply the manager can send to the employee.
+- statutory_citation: The policy section or law used. Leave empty if the context does not name one.
+- checklist: 3 to 5 short action steps, in order.
+- suggested_slack_reply: A friendly, short reply to send to the employee.
+- highlights: 3 or 4 key facts as label and value pairs (for example Deadline: 30 days after the birth). Keep each value under 8 words.
 Only use facts that are in the policy context. If the context does not answer the question, say so and set eligibility_status to Conditional.
 """
 
 USER_PROMPT_TEMPLATE = """Employee ID: {employee_id}
-Manager ID: {manager_id}
+Handled by: {manager_id}
 
-[RAW SLACK MESSAGE FROM EMPLOYEE]:
+[RAW MESSAGE FROM EMPLOYEE]:
 "{message}"
 
-[RETRIEVED POLICY CONTEXT FROM HANDBOOK]:
+[RETRIEVED POLICY CONTEXT]:
 {context}
 """
 
+ROUTER_PROMPT_TEMPLATE = """You decide which ADP business lines are involved in an employee message.
 
-# In-memory store for live Slack messages received during demo
+Business lines:
+{descriptions}
+
+Pick every business line that has something to act on. Pick at least one and at most four.
+Return only the ids (hr, payroll, insurance, retirement) and one short reason.
+"""
+
+
+def build_system_prompt(domain: str) -> str:
+    cfg = get_domain(domain)
+    guardrails = f"- {cfg['guardrails']}" if cfg["guardrails"] else ""
+    return SYSTEM_PROMPT_TEMPLATE.format(
+        business=cfg["name"],
+        user_role=cfg["user_role"],
+        doc_title=cfg["doc_title"],
+        focus=cfg["focus"],
+        adp_examples=", ".join(cfg["adp_examples"]),
+        guardrails=guardrails,
+        categories=", ".join(cfg["categories"]),
+    )
+
+
+# In-memory store for messages and results shown on the dashboard in Live mode
 LIVE_SLACK_FEED: List[dict] = []
 
 
-async def synthesize_rag_insight(employee_id: str, manager_id: str, message: str) -> tuple:
-    """
-    Core RAG pipeline (returns the plan and the policy excerpts used):
-    1. Embeds query & retrieves top 3 chunks from ChromaDB.
-    2. Runs ChatOpenAI(model="gpt-4o") with structured output schema.
-    """
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key.startswith("your_openai"):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="OPENAI_API_KEY is not configured in backend/.env"
-        )
+def add_to_feed(domain: str, employee_id: str, employee_name: str, manager_id: str, message: str,
+                plan: HRActionPlan, sources: List[dict], source: str, group_id: Optional[str] = None) -> dict:
+    record = {
+        "id": f"evt-{len(LIVE_SLACK_FEED) + 1}",
+        "domain": domain,
+        "group_id": group_id,
+        "employee_id": employee_id,
+        "employee_name": employee_name,
+        "manager_id": manager_id,
+        "message": message,
+        "insight": plan.model_dump(),
+        "sources": sources,
+        "received_at": datetime.now().isoformat(timespec="seconds"),
+        "timestamp": "Just now",
+        "source": source,
+    }
+    LIVE_SLACK_FEED.append(record)
+    return record
 
-    store = get_vector_store()
+
+# ---------------------------------------------------------------------------
+# Core pipeline
+# ---------------------------------------------------------------------------
+
+async def synthesize_rag_insight(employee_id: str, manager_id: str, message: str, domain: str = "hr") -> tuple:
+    """
+    Core RAG pipeline for one business. Returns the plan and the policy excerpts used.
+    1. Finds the top 3 policy chunks for this business in ChromaDB.
+    2. Asks the AI model for a structured plan.
+    """
+    get_domain(domain)  # raises KeyError for an unknown business
+    check_api_key()
+
+    store = get_vector_store(domain)
     retrieved_docs = store.similarity_search(query=message, k=3)
 
     context_texts = []
@@ -195,26 +256,25 @@ async def synthesize_rag_insight(employee_id: str, manager_id: str, message: str
 
     context_block = "\n\n".join(context_texts) if context_texts else "No policy documents found in index."
 
-    llm = ChatOpenAI(
-        model="gpt-4o",
-        temperature=0.0,
-        api_key=api_key
-    )
+    llm = ai_provider.get_llm()
     structured_llm = llm.with_structured_output(HRActionPlan)
 
+    # The system text goes in as a variable so curly braces in it are never treated as placeholders
     prompt = ChatPromptTemplate.from_messages([
-        ("system", SYSTEM_PROMPT),
+        ("system", "{system_text}"),
         ("user", USER_PROMPT_TEMPLATE),
     ])
 
     chain = prompt | structured_llm
 
     result: HRActionPlan = await chain.ainvoke({
+        "system_text": build_system_prompt(domain),
         "employee_id": employee_id,
         "manager_id": manager_id,
         "message": message,
         "context": context_block,
     })
+    result.domain = domain
 
     sources = []
     for doc in retrieved_docs:
@@ -227,31 +287,57 @@ async def synthesize_rag_insight(employee_id: str, manager_id: str, message: str
     return result, sources
 
 
+async def route_message(message: str) -> dict:
+    """
+    Decides which business lines a message touches.
+    Uses the AI model first. If that fails (for example a rate limit), it falls back to keywords.
+    """
+    try:
+        check_api_key()
+        descriptions = "\n".join(f"- {d}: {DOMAINS[d]['router_hint']}" for d in DOMAIN_IDS)
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "{system_text}"),
+            ("user", "Message: {message}"),
+        ])
+        chain = prompt | ai_provider.get_llm().with_structured_output(RouteDecision)
+        decision = await chain.ainvoke({
+            "system_text": ROUTER_PROMPT_TEMPLATE.format(descriptions=descriptions),
+            "message": message,
+        })
+        picked = [x.strip().lower() for x in decision.domains]
+        domains = [d for d in DOMAIN_IDS if d in picked]  # keeps a fixed order, drops unknown names
+        if domains:
+            return {"domains": domains, "reason": decision.reason, "method": "ai"}
+    except Exception as e:
+        print(f"[Router] AI router failed, using keywords instead: {e}")
+
+    return {
+        "domains": keyword_route(message),
+        "reason": "Matched by keywords (the AI router was not available).",
+        "method": "keywords",
+    }
+
+
 @app.post("/api/insights/generate", response_model=HRActionPlan)
 async def generate_insight(payload: InsightRequest):
     """
-    Direct RAG synthesis endpoint invoked by frontend or external clients.
+    Direct RAG synthesis for ONE business. Set "domain" to hr, payroll, insurance or retirement.
     """
+    if payload.domain not in DOMAINS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown domain '{payload.domain}'. Use one of: {', '.join(DOMAIN_IDS)}"
+        )
     try:
         result, sources = await synthesize_rag_insight(
             employee_id=payload.employee_id,
             manager_id=payload.manager_id,
-            message=payload.message
+            message=payload.message,
+            domain=payload.domain
         )
-        
-        # Also record in live feed for dashboard streaming
-        LIVE_SLACK_FEED.append({
-            "id": f"evt-{len(LIVE_SLACK_FEED) + 1}",
-            "employee_id": payload.employee_id,
-            "manager_id": payload.manager_id,
-            "message": payload.message,
-            "insight": result.model_dump(),
-            "sources": sources,
-            "received_at": datetime.now().isoformat(timespec="seconds"),
-            "timestamp": "Just now",
-            "source": "api"
-        })
 
+        add_to_feed(payload.domain, payload.employee_id, payload.employee_name, payload.manager_id,
+                    payload.message, result, sources, source="api")
         return result
     except HTTPException:
         raise
@@ -262,6 +348,57 @@ async def generate_insight(payload: InsightRequest):
             detail=f"Error generating insight: {str(exc)}"
         )
 
+
+@app.post("/api/insights/analyze-all")
+async def analyze_all(payload: InsightRequest):
+    """
+    One message, every business it touches.
+    1. The router picks the business lines.
+    2. Each business runs its own policy search and plan, at the same time.
+    3. Results share a group_id so the dashboard can show them side by side.
+    """
+    check_api_key()
+    route = await route_message(payload.message)
+    group_id = f"grp-{datetime.now().strftime('%H%M%S%f')}"
+
+    outcomes = await asyncio.gather(
+        *[
+            synthesize_rag_insight(payload.employee_id, payload.manager_id, payload.message, d)
+            for d in route["domains"]
+        ],
+        return_exceptions=True
+    )
+
+    results = []
+    errors = {}
+    for domain, outcome in zip(route["domains"], outcomes):
+        if isinstance(outcome, Exception):
+            print(f"[analyze-all] {domain} failed: {outcome}")
+            errors[domain] = str(outcome)
+            continue
+        plan, sources = outcome
+        add_to_feed(domain, payload.employee_id, payload.employee_name, payload.manager_id,
+                    payload.message, plan, sources, source="api", group_id=group_id)
+        results.append({"domain": domain, "insight": plan.model_dump(), "sources": sources})
+
+    if not results:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Every business failed. Errors: {errors}"
+        )
+
+    return {
+        "group_id": group_id,
+        "message": payload.message,
+        "routing": route,
+        "results": results,
+        "errors": errors,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Slack (HR)
+# ---------------------------------------------------------------------------
 
 # Slack message keys we already handled (Slack can send the same event twice)
 SEEN_SLACK_MESSAGES = set()
@@ -297,26 +434,17 @@ async def process_slack_message(text: str, user_id: str, channel_id: str, ts: st
         insight, sources = await synthesize_rag_insight(
             employee_id=user_id,
             manager_id="sarah-connor",
-            message=text
+            message=text,
+            domain="hr"
         )
 
         user_name = await asyncio.to_thread(get_slack_user_name, user_id, bot_token)
 
-        record = {
-            "id": f"slack-{ts}",
-            "employee_id": user_id,
-            "employee_name": user_name,
-            "manager_id": "sarah-connor",
-            "channel_id": channel_id,
-            "message": text,
-            "insight": insight.model_dump(),
-            "sources": sources,
-            "received_at": datetime.now().isoformat(timespec="seconds"),
-            "timestamp": "Just now",
-            "source": "slack_webhook",
-            "replied_in_slack": False,
-        }
-        LIVE_SLACK_FEED.append(record)
+        record = add_to_feed("hr", user_id, user_name, "sarah-connor", text, insight, sources,
+                             source="slack_webhook")
+        record["id"] = f"slack-{ts}"
+        record["channel_id"] = channel_id
+        record["replied_in_slack"] = False
 
         # Post a threaded reply in Slack if a bot token is set
         if bot_token and channel_id and ts:
@@ -373,10 +501,11 @@ async def slack_events_webhook(payload: dict, background_tasks: BackgroundTasks)
 
     # Raw payload fallback for testing without Slack
     if "message" in payload:
-        insight, sources = await synthesize_rag_insight(
+        insight, _sources = await synthesize_rag_insight(
             employee_id=payload.get("employee_id", "EMP-90421"),
             manager_id=payload.get("manager_id", "sarah-connor"),
-            message=payload["message"]
+            message=payload["message"],
+            domain="hr"
         )
         return {"status": "success", "insight": insight.model_dump()}
 
@@ -386,9 +515,10 @@ async def slack_events_webhook(payload: dict, background_tasks: BackgroundTasks)
 @app.get("/api/slack/feed")
 def get_live_slack_feed():
     """
-    Returns the feed of live Slack messages and synthesized insights for real-time dashboard updates.
+    Returns the latest messages and results for the dashboard in Live mode.
+    (The name says Slack, but API calls from demo.ps1 show up here too.)
     """
-    return {"feed": LIVE_SLACK_FEED[-20:]}
+    return {"feed": LIVE_SLACK_FEED[-40:]}
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ Data Ingestion Script for Converge HR Intelligence Backend.
 
 Parses handbook.pdf using Unstructured.io (with robust PyPDF fallback if system dependencies like Poppler are absent),
 chunks the text using LangChain's RecursiveCharacterTextSplitter,
-embeds the chunks using OpenAI (text-embedding-3-small),
+embeds the chunks using Gemini or OpenAI embeddings (set AI_PROVIDER in .env),
 and stores them in a local ChromaDB collection.
 """
 
@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
+import ai_provider
+from domains import DOMAINS, DOMAIN_IDS
 from langchain_chroma import Chroma
 
 # Load environment variables
@@ -22,8 +23,7 @@ load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_PDF_PATH = os.path.join(BASE_DIR, "data", "handbook.pdf")
-DEFAULT_CHROMA_DIR = os.path.join(BASE_DIR, "chroma_db")
-DEFAULT_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "hr_policies")
+DEFAULT_CHROMA_DIR = os.getenv("CHROMA_PERSIST_DIRECTORY", os.path.join(BASE_DIR, "chroma_db"))
 
 
 def parse_pdf_with_unstructured(pdf_path: str) -> List[Document]:
@@ -107,27 +107,34 @@ def chunk_documents(documents: List[Document]) -> List[Document]:
 
 def embed_and_store_in_chroma(
     chunks: List[Document],
-    chroma_dir: str = DEFAULT_CHROMA_DIR,
-    collection_name: str = DEFAULT_COLLECTION_NAME
+    chroma_dir: str,
+    collection_name: str
 ) -> Chroma:
     """
-    Embeds text chunks using OpenAI text-embedding-3-small and stores in local ChromaDB.
+    Embeds text chunks with the chosen provider (Gemini or OpenAI) and stores them in local ChromaDB.
     """
-    api_key = os.getenv("OPENAI_API_KEY")
-    if api_key and not api_key.startswith("your_openai"):
-        print(f"[Ingest] Initializing OpenAIEmbeddings (text-embedding-3-small)...")
-        embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            api_key=api_key
+    if not ai_provider.get_api_key():
+        raise RuntimeError(
+            f"{ai_provider.key_env_name()} is not set in backend/.env. "
+            "Add it, then run ingest.py again."
         )
-    else:
-        print("[Ingest] Notice: OPENAI_API_KEY is not configured. Using local offline embeddings for initial vectorstore indexing...")
-        from langchain_core.embeddings.fake import FakeEmbeddings
-        embeddings = FakeEmbeddings(size=1536)
+
+    print(f"[Ingest] Using {ai_provider.PROVIDER} embeddings ({ai_provider.embedding_model_name()})...")
+    embeddings = ai_provider.get_embeddings()
 
     print(f"[Ingest] Storing embeddings into ChromaDB at '{chroma_dir}' (collection: '{collection_name}')...")
     os.makedirs(chroma_dir, exist_ok=True)
-    
+
+    # Start fresh, so running ingest twice does not save every chunk twice
+    try:
+        Chroma(
+            persist_directory=chroma_dir,
+            collection_name=collection_name,
+            embedding_function=embeddings
+        ).delete_collection()
+    except Exception:
+        pass
+
     vectorstore = Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
@@ -140,15 +147,15 @@ def embed_and_store_in_chroma(
 
 
 def run_ingestion(
-    pdf_path: str = DEFAULT_PDF_PATH,
+    pdf_path: str,
     chroma_dir: str = DEFAULT_CHROMA_DIR,
-    collection_name: str = DEFAULT_COLLECTION_NAME
+    collection_name: str = "hr_policies"
 ):
     """
-    Orchestrates the full PDF parsing, chunking, and ChromaDB vector indexing pipeline.
+    Orchestrates the full PDF parsing, chunking, and ChromaDB vector indexing pipeline for one PDF.
     """
     if not os.path.exists(pdf_path):
-        print(f"[Ingest] PDF not found at {pdf_path}. Generating mock handbook.pdf first...")
+        print(f"[Ingest] PDF not found at {pdf_path}. Generating the sample PDFs first...")
         from data.generate_pdf import main as gen_pdf_main
         gen_pdf_main()
 
@@ -165,13 +172,30 @@ def run_ingestion(
     chunks = chunk_documents(docs)
 
     # 3. Embed and store
-    vectorstore = embed_and_store_in_chroma(chunks, chroma_dir, collection_name)
-    return vectorstore
+    return embed_and_store_in_chroma(chunks, chroma_dir, collection_name)
+
+
+def run_all(domain_ids: List[str] = None):
+    """Indexes the policy PDF of every business (or only the ones you name)."""
+    for domain_id in (domain_ids or DOMAIN_IDS):
+        cfg = DOMAINS[domain_id]
+        print(f"\n##### {cfg['name']} #####")
+        run_ingestion(
+            pdf_path=os.path.join(BASE_DIR, "data", cfg["pdf_file"]),
+            chroma_dir=DEFAULT_CHROMA_DIR,
+            collection_name=ai_provider.get_collection_name(domain_id)
+        )
 
 
 if __name__ == "__main__":
+    # Usage: python ingest.py            (all businesses)
+    #        python ingest.py payroll    (only one or more named businesses)
     try:
-        run_ingestion()
+        names = [a.lower() for a in sys.argv[1:]]
+        unknown = [n for n in names if n not in DOMAINS]
+        if unknown:
+            raise RuntimeError(f"Unknown business: {', '.join(unknown)}. Use: {', '.join(DOMAIN_IDS)}")
+        run_all(names or None)
     except Exception as exc:
         print(f"[Ingest Error] {exc}", file=sys.stderr)
         sys.exit(1)

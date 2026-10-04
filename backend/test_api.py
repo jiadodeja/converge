@@ -3,7 +3,7 @@ Automated test and verification script for Converge backend.
 Tests:
 1. Health check endpoint (GET /health)
 2. Schema validation on POST /api/insights/generate
-3. End-to-end RAG retrieval & GPT-4o synthesis (when OPENAI_API_KEY is configured)
+3. End-to-end RAG retrieval & AI synthesis (when the API key is configured)
 """
 
 import os
@@ -43,6 +43,14 @@ def test_endpoints():
     assert res_bad.status_code == 422
     print("Schema validation correctly rejected missing message.")
 
+    print("\n--- 2b. Testing unknown business name ---")
+    res_domain = client.post("/api/insights/generate", json={
+        "employee_id": "EMP-100", "manager_id": "MGR-200", "message": "hello", "domain": "bogus"
+    })
+    print(f"POST with domain=bogus -> Status {res_domain.status_code}")
+    assert res_domain.status_code == 400
+    print("Unknown business correctly rejected.")
+
     print("\n--- 3. Testing RAG Insight Generation ---")
     valid_payload = {
         "employee_id": "EMP-90421",
@@ -50,16 +58,17 @@ def test_endpoints():
         "message": "Hey Sarah, expecting our second kid in August! Do I get 12 weeks of leave, and do I have to exhaust my PTO first?"
     }
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key.startswith("your_openai"):
-        print("\n[Notice] OPENAI_API_KEY is not configured yet in .env.")
+    import ai_provider
+    api_key = ai_provider.get_api_key()
+    if not api_key:
+        print(f"\n[Notice] {ai_provider.key_env_name()} is not configured yet in .env.")
         res_key_check = client.post("/api/insights/generate", json=valid_payload)
         print(f"POST /api/insights/generate -> Status {res_key_check.status_code}")
         print(f"Response: {res_key_check.json()}")
         assert res_key_check.status_code == 503
         print("API correctly handles unconfigured API key with clear 503 guidance.")
     else:
-        print(f"Executing full RAG with OPENAI_API_KEY on payload: {valid_payload['message']}")
+        print(f"Executing full RAG with {ai_provider.PROVIDER} on payload: {valid_payload['message']}")
         res_gen = client.post("/api/insights/generate", json=valid_payload)
         print(f"POST /api/insights/generate -> Status {res_gen.status_code}")
         print(json.dumps(res_gen.json(), indent=2))
