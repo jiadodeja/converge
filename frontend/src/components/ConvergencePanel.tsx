@@ -100,7 +100,7 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
             ) : (
               <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 font-semibold flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live GPT-4o
+                Live AI (RAG)
               </div>
             )}
           </div>
