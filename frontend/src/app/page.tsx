@@ -26,7 +26,9 @@ export default function DashboardPage() {
   const [domain, setDomain] = useState<DomainTab>('hr');
   const [activePersona, setActivePersona] = useState<Persona>(MOCK_PERSONAS[0]);
   const [activeInsightId, setActiveInsightId] = useState<string>(MOCK_INSIGHTS[0].id);
-  const [submittedInsightIds, setSubmittedInsightIds] = useState<Set<string>>(new Set());
+  // Cases the manager closed. 'adp' = sent to ADP, 'manual' = handled another way, 'open' = reopened.
+  const [closedMap, setClosedMap] = useState<Record<string, 'adp' | 'manual' | 'open'>>({});
+  const [view, setView] = useState<'open' | 'done'>('open');
   const [isSubmittingAdp, setIsSubmittingAdp] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -37,10 +39,23 @@ export default function DashboardPage() {
   const [liveConnected, setLiveConnected] = useState(false);
   const knownLiveIds = useRef<Set<string> | null>(null);
 
-  const allInsights = useMemo(
+  const rawInsights = useMemo(
     () => (mode === 'demo' ? [...MOCK_INSIGHTS, ...MOCK_NEW_INSIGHTS] : liveCases.map((c) => c.insight)),
     [mode, liveCases]
   );
+
+  // Put the manager's closing choice on top of each case
+  const allInsights = useMemo(
+    () =>
+      rawInsights.map((i) => {
+        const c = closedMap[i.id];
+        if (!c) return i;
+        const status = c === 'adp' ? 'Synced with ADP' : c === 'manual' ? 'Closed' : 'Pending Manager Action';
+        return { ...i, status } as ConvergenceInsight;
+      }),
+    [rawInsights, closedMap]
+  );
+  const isClosedInsight = (i: ConvergenceInsight) => i.status !== 'Pending Manager Action';
   const allMessyItems = useMemo(
     () => (mode === 'demo' ? [...MOCK_MESSY_DATA, ...MOCK_NEW_MESSY] : liveCases.flatMap((c) => c.messy)),
     [mode, liveCases]
@@ -55,10 +70,11 @@ export default function DashboardPage() {
   // How many cases each tab has (for the little number on the tab)
   const tabCounts = useMemo(() => {
     const counts: Record<DomainTab, number> = { all: 0, hr: 0, payroll: 0, insurance: 0, retirement: 0 };
-    allInsights.forEach((i) => {
+    const open = allInsights.filter((i) => !isClosedInsight(i));
+    open.forEach((i) => {
       counts[i.domain ?? 'hr'] += 1;
     });
-    counts.all = new Set(allInsights.filter((i) => i.groupId).map((i) => i.groupId)).size;
+    counts.all = new Set(open.filter((i) => i.groupId).map((i) => i.groupId)).size;
     return counts;
   }, [allInsights]);
 
@@ -66,7 +82,7 @@ export default function DashboardPage() {
   const groups = useMemo<InsightGroup[]>(() => {
     const map = new Map<string, InsightGroup>();
     allInsights.forEach((i) => {
-      if (!i.groupId) return;
+      if (!i.groupId || isClosedInsight(i)) return;
       const g = map.get(i.groupId) || { groupId: i.groupId, message: i.originalMessage || '', insights: [] };
       g.insights.push(i);
       map.set(i.groupId, g);
@@ -75,11 +91,19 @@ export default function DashboardPage() {
   }, [allInsights]);
 
   // Filter insights for the chosen business and (in demo mode) the active manager (RBAC)
-  const managerInsights = useMemo(() => {
+  const scopedInsights = useMemo(() => {
     const inDomain = allInsights.filter((i) => domain === 'all' || (i.domain ?? 'hr') === domain);
     if (mode === 'live') return inDomain; // live cases are not tied to a demo manager
     return inDomain.filter((insight) => insight.managerId === activePersona.id);
   }, [allInsights, domain, mode, activePersona.id]);
+
+  // Open view shows cases that still need action, Done view shows closed ones
+  const managerInsights = useMemo(
+    () => scopedInsights.filter((i) => isClosedInsight(i) === (view === 'done')),
+    [scopedInsights, view]
+  );
+  const openCount = scopedInsights.filter((i) => !isClosedInsight(i)).length;
+  const doneCount = scopedInsights.length - openCount;
 
   // Ensure active insight matches the manager's roster
   const activeInsight = useMemo(() => {
@@ -94,9 +118,7 @@ export default function DashboardPage() {
   }, [managerInsights, allMessyItems]);
 
   // Compute pending actions count for this manager
-  const pendingActionsCount = useMemo(() => {
-    return managerInsights.filter((ins) => !submittedInsightIds.has(ins.id)).length;
-  }, [managerInsights, submittedInsightIds]);
+  const pendingActionsCount = openCount;
 
   // Toast Helpers
   const addToast = (type: 'success' | 'error' | 'info', title: string, description: string) => {
@@ -217,21 +239,57 @@ export default function DashboardPage() {
     setActiveInsightId(insightId);
   };
 
-  // Handler: Submit to ADP API
+  // Tell the backend a live case was closed or reopened (demo cases only live in this page)
+  const syncLiveStatus = async (insight: ConvergenceInsight, action: 'done-adp' | 'done-manual' | 'reopen') => {
+    if (insight.origin !== 'live') return;
+    const id = insight.id.replace(/^live-/, '');
+    try {
+      const res = await fetch(
+        `${API_URL}/api/slack/feed/${id}/${action === 'reopen' ? 'reopen' : 'done'}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ how: action === 'done-adp' ? 'adp' : 'manual' }),
+        }
+      );
+      if (!res.ok) throw new Error('failed');
+    } catch {
+      addToast('error', 'Could not save to the backend', 'The change is only shown here and may come back after a refresh.');
+    }
+  };
+
+  // Handler: Submit to ADP API (this also closes the case)
   const handleSubmitToAdp = async (insight: ConvergenceInsight) => {
     setIsSubmittingAdp(true);
 
-    // Simulate realistic asynchronous network call to ADP Workforce Now REST API
+    // Simulate realistic asynchronous network call to ADP REST API
     setTimeout(() => {
       setIsSubmittingAdp(false);
-      setSubmittedInsightIds((prev) => new Set(prev).add(insight.id));
+      setClosedMap((prev) => ({ ...prev, [insight.id]: 'adp' }));
+      syncLiveStatus(insight, 'done-adp');
 
       addToast(
         'success',
         'Submitted to ADP API Successfully',
-        `Payload for ${insight.employee.name} (${insight.adpPayload.adpRecordCode}) posted to ADP Workforce Now API. Payroll adjustments triggered.`
+        `Payload for ${insight.employee.name} (${insight.adpPayload.adpRecordCode}) was sent. The case moved to Done.`
       );
     }, 900);
+  };
+
+  // Handler: close a case that was handled without ADP
+  const handleMarkDone = (insight: ConvergenceInsight) => {
+    setClosedMap((prev) => ({ ...prev, [insight.id]: 'manual' }));
+    syncLiveStatus(insight, 'done-manual');
+    addToast('success', 'Case closed', `${insight.employee.name}'s case moved to Done.`);
+  };
+
+  // Handler: open a closed case again
+  const handleReopen = (insight: ConvergenceInsight) => {
+    setClosedMap((prev) => ({ ...prev, [insight.id]: 'open' }));
+    syncLiveStatus(insight, 'reopen');
+    setView('open');
+    setActiveInsightId(insight.id);
+    addToast('info', 'Case reopened', `${insight.employee.name}'s case is back in the Open list.`);
   };
 
   // Handler: Copy Slack message
@@ -242,15 +300,7 @@ export default function DashboardPage() {
     setTimeout(() => setIsCopied(false), 2500);
   };
 
-  // Augment active insight with submission status
-  const currentInsightWithStatus = useMemo(() => {
-    if (!activeInsight) return null;
-    const isSubmitted = submittedInsightIds.has(activeInsight.id);
-    return {
-      ...activeInsight,
-      status: isSubmitted ? ('Synced with ADP' as const) : activeInsight.status,
-    };
-  }, [activeInsight, submittedInsightIds]);
+  const currentInsightWithStatus = activeInsight;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#090a0f] text-zinc-100 selection:bg-indigo-500/30 selection:text-indigo-200">
@@ -289,6 +339,21 @@ export default function DashboardPage() {
             </span>
           </div>
 
+          <div className="flex items-center gap-1 rounded-lg bg-zinc-900 border border-zinc-800 p-0.5 text-[11px] font-semibold">
+            <button
+              onClick={() => setView('open')}
+              className={`px-3 py-1 rounded-md transition-colors ${view === 'open' ? 'bg-indigo-500/20 text-indigo-300' : 'text-zinc-400 hover:text-zinc-200'}`}
+            >
+              Open ({openCount})
+            </button>
+            <button
+              onClick={() => setView('done')}
+              className={`px-3 py-1 rounded-md transition-colors ${view === 'done' ? 'bg-emerald-500/20 text-emerald-300' : 'text-zinc-400 hover:text-zinc-200'}`}
+            >
+              Done ({doneCount})
+            </button>
+          </div>
+
           <div className="flex items-center gap-4 text-zinc-400 text-[11px]">
             <span className="flex items-center gap-1.5">
               <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-400" />
@@ -300,7 +365,7 @@ export default function DashboardPage() {
             <span className="text-zinc-600">•</span>
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{submittedInsightIds.size} Synced with ADP</span>
+              <span>{allInsights.filter((i) => i.status === 'Synced with ADP').length} Synced with ADP</span>
             </span>
           </div>
         </div>
@@ -348,6 +413,8 @@ export default function DashboardPage() {
               isSubmittingAdp={isSubmittingAdp}
               onCopySlackReply={handleCopySlackReply}
               isCopied={isCopied}
+              onMarkDone={handleMarkDone}
+              onReopen={handleReopen}
               mode={mode}
             />
           </div>

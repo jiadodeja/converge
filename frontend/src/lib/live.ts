@@ -12,6 +12,8 @@ export interface LiveFeedItem {
   employee_name?: string;
   domain?: string;
   group_id?: string;
+  status?: 'open' | 'done';
+  done_how?: 'adp' | 'manual' | null;
   manager_id: string;
   channel_id?: string;
   message: string;
@@ -152,7 +154,12 @@ export function toLiveCase(item: LiveFeedItem): LiveCase {
     },
     category,
     urgency: pickUrgency(ai.urgency),
-    status: 'Pending Manager Action',
+    status:
+      item.status === 'done'
+        ? item.done_how === 'adp'
+          ? 'Synced with ADP'
+          : 'Closed'
+        : 'Pending Manager Action',
     aiConfidence: 0, // 0 means "do not show a confidence number"
     headline: ai.headline || `${name} asked about ${category.toLowerCase()}.`,
     summary: ai.eligibility_summary,

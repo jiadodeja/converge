@@ -77,7 +77,7 @@ export interface ConvergenceInsight {
   };
   category: string; // for example 'Parental Leave', 'Short or Missing Pay', '401(k) Loan'
   urgency: 'High' | 'Medium' | 'Low';
-  status: 'Pending Manager Action' | 'Submitted to ADP' | 'Synced with ADP';
+  status: 'Pending Manager Action' | 'Submitted to ADP' | 'Synced with ADP' | 'Closed';
   aiConfidence: number;
   headline: string;
   summary: string;

@@ -14,3 +14,6 @@ chroma_db/
 
 # Backup files
 *.bak
+
+# Saved Live-mode feed
+feed_store.json

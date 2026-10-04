@@ -7,17 +7,21 @@ Main endpoints:
   POST /api/insights/analyze-all  the AI picks every business the message touches
   POST /api/slack/events          Slack webhook (HR)
   GET  /api/slack/feed            what the dashboard shows in Live mode
+  POST /api/slack/feed/{id}/done    close a case (how = "adp" or "manual")
+  POST /api/slack/feed/{id}/reopen  open a closed case again
 """
 
 import os
+import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_chroma import Chroma
@@ -210,14 +214,54 @@ def build_system_prompt(domain: str) -> str:
     )
 
 
-# In-memory store for messages and results shown on the dashboard in Live mode
-LIVE_SLACK_FEED: List[dict] = []
+# The feed that the dashboard shows in Live mode.
+# It is saved to a small JSON file so a restart does not lose open cases.
+# Open cases are kept until someone closes them. Closed cases are kept for 7 days.
+FEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "feed_store.json")
+DONE_KEEP_DAYS = 7
+
+
+def load_feed() -> List[dict]:
+    try:
+        with open(FEED_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return []
+
+
+def save_feed() -> None:
+    try:
+        with open(FEED_FILE, "w", encoding="utf-8") as f:
+            json.dump(LIVE_SLACK_FEED, f)
+    except OSError as e:
+        print(f"[Feed] Could not save feed file: {e}")
+
+
+def purge_old_done() -> None:
+    """Remove closed cases that are older than DONE_KEEP_DAYS. Open cases are never removed."""
+    limit = datetime.now() - timedelta(days=DONE_KEEP_DAYS)
+    keep = []
+    for rec in LIVE_SLACK_FEED:
+        done_at = rec.get("done_at")
+        if rec.get("status") == "done" and done_at and datetime.fromisoformat(done_at) < limit:
+            continue
+        keep.append(rec)
+    LIVE_SLACK_FEED[:] = keep
+
+
+LIVE_SLACK_FEED: List[dict] = load_feed()
+purge_old_done()
+
+
+def next_feed_id() -> str:
+    numbers = [int(r["id"].split("-")[-1]) for r in LIVE_SLACK_FEED if str(r.get("id", "")).startswith("evt-")]
+    return f"evt-{max(numbers, default=0) + 1}"
 
 
 def add_to_feed(domain: str, employee_id: str, employee_name: str, manager_id: str, message: str,
                 plan: HRActionPlan, sources: List[dict], source: str, group_id: Optional[str] = None) -> dict:
     record = {
-        "id": f"evt-{len(LIVE_SLACK_FEED) + 1}",
+        "id": next_feed_id(),
         "domain": domain,
         "group_id": group_id,
         "employee_id": employee_id,
@@ -229,8 +273,13 @@ def add_to_feed(domain: str, employee_id: str, employee_name: str, manager_id: s
         "received_at": datetime.now().isoformat(timespec="seconds"),
         "timestamp": "Just now",
         "source": source,
+        "status": "open",      # "open" or "done"
+        "done_at": None,
+        "done_how": None,      # "adp" or "manual"
     }
     LIVE_SLACK_FEED.append(record)
+    purge_old_done()
+    save_feed()
     return record
 
 
@@ -518,7 +567,41 @@ def get_live_slack_feed():
     Returns the latest messages and results for the dashboard in Live mode.
     (The name says Slack, but API calls from demo.ps1 show up here too.)
     """
-    return {"feed": LIVE_SLACK_FEED[-40:]}
+    purge_old_done()
+    return {"feed": LIVE_SLACK_FEED}
+
+
+class DoneRequest(BaseModel):
+    how: str = "manual"  # "adp" (sent to ADP) or "manual" (handled another way)
+
+
+def find_feed_item(item_id: str) -> dict:
+    for rec in LIVE_SLACK_FEED:
+        if rec["id"] == item_id:
+            return rec
+    raise HTTPException(status_code=404, detail="Feed item not found")
+
+
+@app.post("/api/slack/feed/{item_id}/done")
+def mark_feed_item_done(item_id: str, body: DoneRequest):
+    """Close a case once the manager has acted on it."""
+    rec = find_feed_item(item_id)
+    rec["status"] = "done"
+    rec["done_at"] = datetime.now().isoformat(timespec="seconds")
+    rec["done_how"] = "adp" if body.how == "adp" else "manual"
+    save_feed()
+    return {"status": "ok", "item": rec}
+
+
+@app.post("/api/slack/feed/{item_id}/reopen")
+def reopen_feed_item(item_id: str):
+    """Undo a close, in case it was clicked by mistake."""
+    rec = find_feed_item(item_id)
+    rec["status"] = "open"
+    rec["done_at"] = None
+    rec["done_how"] = None
+    save_feed()
+    return {"status": "ok", "item": rec}
 
 
 if __name__ == "__main__":

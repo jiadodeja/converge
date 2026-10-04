@@ -27,6 +27,8 @@ interface ConvergencePanelProps {
   isSubmittingAdp: boolean;
   onCopySlackReply: (text: string) => void;
   isCopied: boolean;
+  onMarkDone: (insight: ConvergenceInsight) => void;
+  onReopen: (insight: ConvergenceInsight) => void;
   mode?: 'demo' | 'live';
 }
 
@@ -38,6 +40,8 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
   isSubmittingAdp,
   onCopySlackReply,
   isCopied,
+  onMarkDone,
+  onReopen,
   mode = 'demo',
 }) => {
   const [showPayload, setShowPayload] = useState(false);
@@ -67,6 +71,7 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
   }
 
   const isSubmitted = activeInsight.status === 'Submitted to ADP' || activeInsight.status === 'Synced with ADP';
+  const isClosed = isSubmitted || activeInsight.status === 'Closed';
 
   return (
     <div className="flex flex-col h-full bg-zinc-950/60 rounded-2xl border border-zinc-800/80 overflow-hidden shadow-2xl backdrop-blur-md">
@@ -183,10 +188,10 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
               Action Status
             </span>
             <div className="mt-0.5">
-              {isSubmitted ? (
+              {isClosed ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                  Synced with ADP API
+                  {isSubmitted ? 'Synced with ADP API' : 'Closed (handled manually)'}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
@@ -397,6 +402,30 @@ export const ConvergencePanel: React.FC<ConvergencePanelProps> = ({
                 </>
               )}
             </button>
+          </div>
+
+          {/* Close the case without ADP, or open it again */}
+          <div className="mt-3 pt-3 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] text-zinc-400">
+              {isClosed
+                ? 'This case is closed. It stays in the Done list for 7 days.'
+                : 'Handled it another way, for example by replying in Slack? Close the case here.'}
+            </span>
+            {isClosed ? (
+              <button
+                onClick={() => onReopen(activeInsight)}
+                className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold text-zinc-200 hover:bg-zinc-800 transition-colors"
+              >
+                Reopen case
+              </button>
+            ) : (
+              <button
+                onClick={() => onMarkDone(activeInsight)}
+                className="px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+              >
+                Mark done
+              </button>
+            )}
           </div>
 
           {/* Toggleable Payload Inspector */}
