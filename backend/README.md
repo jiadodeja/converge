@@ -108,3 +108,48 @@ Run the automated endpoint test suite:
 ```bash
 python test_api.py
 ```
+
+
+---
+
+## Multiple businesses (HR, Payroll, Insurance, Retirement)
+
+Converge now works for four ADP business lines. Each one has its own sample policy PDF, its own
+ChromaDB collection and its own AI instructions. The settings live in `domains.py`.
+
+| Business | `domain` value | Sample document |
+|---|---|---|
+| HR | `hr` | `data/handbook.pdf` |
+| Payroll | `payroll` | `data/payroll_guide.pdf` |
+| Insurance | `insurance` | `data/benefits_guide.pdf` |
+| Retirement | `retirement` | `data/retirement_plan.pdf` |
+
+All documents are made-up sample text, not real ADP or legal rules.
+
+### Setup after pulling this change
+```bash
+pip install -r requirements.txt
+python data/generate_pdf.py      # only makes PDFs that are missing
+python ingest.py                 # indexes all four businesses (or: python ingest.py payroll)
+python main.py
+```
+
+### Endpoints
+- `POST /api/insights/generate` takes `domain` (default `hr`) and returns one plan.
+- `POST /api/insights/analyze-all` lets the AI pick every business the message touches and returns one plan for each.
+
+### Demo script
+```powershell
+.\demo.ps1                    # menu
+.\demo.ps1 -Domain payroll    # one business
+.\demo.ps1 -Domain all        # one message, every business
+```
+Every call also shows up on the dashboard when it is in Live mode.
+
+### AI provider
+Set `AI_PROVIDER=gemini` (default) or `openai` in `.env`. See `ai_provider.py`.
+
+### Add a new business
+1. Add an entry to `DOMAINS` in `domains.py`.
+2. Add its sample document text in `data/generate_pdf.py`.
+3. Run `python ingest.py <name>`.
