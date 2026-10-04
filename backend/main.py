@@ -394,7 +394,7 @@ async def generate_insight(payload: InsightRequest):
         )
 
         add_to_feed(payload.domain, payload.employee_id, payload.employee_name, payload.manager_id,
-                    clean_message, result, sources, source="api", redactions=redactions)
+                    clean_message, result, sources, source=payload.channel or "api", redactions=redactions)
         return result
     except HTTPException:
         raise
@@ -438,7 +438,7 @@ async def analyze_all(payload: InsightRequest):
             continue
         plan, sources = outcome
         add_to_feed(domain, payload.employee_id, payload.employee_name, payload.manager_id,
-                    clean_message, plan, sources, source="api", group_id=group_id, redactions=redactions)
+                    clean_message, plan, sources, source=payload.channel or "api", group_id=group_id, redactions=redactions)
         results.append({"domain": domain, "insight": plan.model_dump(), "sources": sources})
 
     if not results:

@@ -58,7 +58,7 @@ export const ChaosPanel: React.FC<ChaosPanelProps> = ({
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-ink tracking-tight">The Chaos</h2>
                 <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                  {mode === 'live' ? 'Live Slack Ingestion' : 'Unstructured Ingestion'}
+                  {mode === 'live' ? 'Live Ingestion (Slack and Email)' : 'Unstructured Ingestion'}
                 </span>
               </div>
               <p className="text-xs text-zinc-400">

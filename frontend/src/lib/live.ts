@@ -17,6 +17,7 @@ export interface LiveFeedItem {
   done_how?: 'adp' | 'manual' | null;
   manager_id: string;
   channel_id?: string;
+  source?: string;
   message: string;
   received_at?: string;
   replied_in_slack?: boolean;
@@ -188,8 +189,33 @@ export function toLiveCase(item: LiveFeedItem): LiveCase {
     messySourceIds: [`messy-${insightId}-slack`],
   };
 
+  // An email (from the Outlook add-in) is shown as an email, not a Slack message.
+  const isEmail = item.source === 'email';
+  const subjectMatch = item.message.match(/^Email subject:\s*(.*)\n+/);
+  const emailSubject = subjectMatch ? subjectMatch[1].trim() || '(no subject)' : category;
+  const emailBody = subjectMatch ? item.message.slice(subjectMatch[0].length) : item.message;
+
+  const emailItem: MessyDataItem = {
+    id: `messy-${insightId}-slack`,
+    type: 'email',
+    title: `Email: ${emailSubject}`,
+    channelOrDoc: 'Outlook',
+    timestamp: time,
+    sourceBadge: 'Outlook add-in',
+    author: { name, role: 'Team Member', avatar: initials(name) },
+    summarySnippet: emailBody,
+    emailDetails: {
+      subject: emailSubject,
+      from: `${name} <${item.employee_id}>`,
+      to: 'You',
+      date: time,
+      body: emailBody,
+    },
+    relatedInsightId: insightId,
+  };
+
   const messy: MessyDataItem[] = [
-    {
+    isEmail ? emailItem : {
       id: `messy-${insightId}-slack`,
       type: 'slack',
       title: `Slack Message: ${category}`,

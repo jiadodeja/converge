@@ -143,6 +143,7 @@ async function analyzeEmail() {
         employee_name: from.displayName,
         manager_id: 'outlook-user',
         message: message,
+        channel: 'email',
       }),
     });
 

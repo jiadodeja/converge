@@ -11,6 +11,7 @@ class InsightRequest(BaseModel):
         description="Business line: hr, payroll, insurance or retirement"
     )
     employee_name: str = Field(default="", description="Optional display name for the dashboard")
+    channel: str = Field(default="api", description="Where the message came from: api, email or slack")
 
 
 class Highlight(BaseModel):
