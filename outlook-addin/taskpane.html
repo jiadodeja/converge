@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Converge</title>
+    <!-- Microsoft's Office.js library (needed for every Outlook add-in) -->
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="taskpane.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="logo">C</div>
+      <div>
+        <div class="title">Converge</div>
+        <div class="subtitle">Turn this email into next steps</div>
+      </div>
+    </header>
+
+    <main>
+      <!-- The email that is open right now -->
+      <section class="card" id="email-card">
+        <div class="label">Selected email</div>
+        <div id="email-from" class="line">Loading...</div>
+        <div id="email-subject" class="line strong"></div>
+      </section>
+
+      <button id="analyze-btn" class="primary" disabled>Analyze this email</button>
+      <div id="status" class="status"></div>
+
+      <!-- Answers from each business -->
+      <div id="results"></div>
+
+      <details class="settings">
+        <summary>Settings</summary>
+        <label for="api-url">Backend address</label>
+        <input id="api-url" type="text" />
+        <label for="dash-url">Dashboard address</label>
+        <input id="dash-url" type="text" />
+        <button id="save-btn" class="secondary">Save</button>
+      </details>
+
+      <a id="dashboard-link" class="link" target="_blank" rel="noopener">Open the Converge dashboard</a>
+    </main>
+
+    <script src="taskpane.js"></script>
+  </body>
+</html>

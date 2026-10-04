@@ -1,0 +1,250 @@
+/* Styles for the Converge side panel. Colors follow the ADP style used in the dashboard. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+  font-size: 13px;
+  color: #1b1d2b;
+  background: #f7f6f4;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #141c52;
+  color: #fff;
+}
+
+.logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+main {
+  padding: 12px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e4e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(20, 28, 82, 0.08);
+}
+
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #56627a;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.line {
+  word-break: break-word;
+}
+
+.strong {
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.primary {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  background: #2f4ba2;
+  color: #fff;
+  font-weight: 700;
+}
+
+.primary:hover:not(:disabled) {
+  background: #263f8c;
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.secondary {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 2px solid #2f4ba2;
+  border-radius: 6px;
+  background: #fff;
+  color: #2f4ba2;
+  font-weight: 600;
+}
+
+.status {
+  margin: 10px 0;
+  font-size: 12px;
+  color: #56627a;
+}
+
+.status.error {
+  color: #be123c;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.route {
+  font-size: 12px;
+  color: #3b475f;
+  margin-bottom: 8px;
+}
+
+.biz {
+  border-left: 4px solid #2f4ba2;
+}
+
+.biz-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.biz-name {
+  font-weight: 700;
+  color: #2f4ba2;
+}
+
+.pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.pill.cond {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.pill.no {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.headline {
+  font-weight: 600;
+  margin-bottom: 8px;
+  line-height: 1.35;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tile {
+  background: #eef1fb;
+  border: 1px solid #d5dcf0;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.tile .k {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #56627a;
+  font-weight: 600;
+}
+
+.tile .v {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2f4ba2;
+  margin-top: 2px;
+}
+
+ul.steps {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+ul.steps li {
+  margin-bottom: 3px;
+}
+
+.endpoint {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: #77839b;
+  word-break: break-all;
+}
+
+.settings {
+  margin: 12px 0;
+  font-size: 12px;
+}
+
+.settings summary {
+  cursor: pointer;
+  color: #56627a;
+}
+
+.settings label {
+  display: block;
+  margin-top: 8px;
+  color: #56627a;
+}
+
+.settings input {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #cfd6e3;
+  border-radius: 4px;
+  font: inherit;
+}
+
+.link {
+  display: block;
+  text-align: center;
+  color: #2f4ba2;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
